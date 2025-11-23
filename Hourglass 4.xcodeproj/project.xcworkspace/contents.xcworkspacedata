@@ -4,4 +4,19 @@
    <FileRef
       location = "self:">
    </FileRef>
+   <FileRef
+      location = "group:TestsHourglassTests.swift">
+   </FileRef>
+   <FileRef
+      location = "group:TestsHourglassTests 2.swift">
+   </FileRef>
+   <FileRef
+      location = "group:TestsHourglassTests 3.swift">
+   </FileRef>
+   <FileRef
+      location = "group:TestsHourglassTests 4.swift">
+   </FileRef>
+   <FileRef
+      location = "group:TestsHourglassTests 5.swift">
+   </FileRef>
 </Workspace>
