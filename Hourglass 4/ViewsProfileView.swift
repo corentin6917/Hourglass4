@@ -277,12 +277,9 @@ struct MainProfileCard: View {
 
 struct FriendsSection: View {
     @Binding var showFindFriends: Bool
-    
-    let friends: [Friend] = [
-        Friend(id: "1", name: "linos.martos", email: "linos.martos@gmail.com", joinDate: "30/10/2025", profileColor: .blue),
-        Friend(id: "2", name: "romain.cublier", email: "romain.cublier@gmail.com", joinDate: "03/11/2025", profileColor: .purple)
-    ]
-    
+    @State private var friends: [UserData] = []
+    @State private var isLoading = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -312,27 +309,48 @@ struct FriendsSection: View {
                 }
             }
             
-            DisclosureGroup(
-                isExpanded: .constant(true),
-                content: {
-                    VStack(spacing: 12) {
-                        ForEach(friends) { friend in
-                            FriendCard(friend: friend)
+            if isLoading {
+                ProgressView()
+                    .padding()
+            } else if friends.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "person.2.slash")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+                    Text("Aucun complice pour le moment")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("Ajoute des amis pour partager tes victoires !")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else {
+                DisclosureGroup(
+                    isExpanded: .constant(true),
+                    content: {
+                        VStack(spacing: 12) {
+                            ForEach(friends) { friend in
+                                RealFriendCard(friend: friend) {
+                                    loadFriends()
+                                }
+                            }
+                        }
+                        .padding(.top, 12)
+                    },
+                    label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "heart.fill")
+                                .foregroundStyle(.red)
+                            Text("Mes Sabliers Complices (\(friends.count))")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                         }
                     }
-                    .padding(.top, 12)
-                },
-                label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "heart.fill")
-                            .foregroundStyle(.red)
-                        Text("Mes Sabliers Complices (\(friends.count))")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                    }
-                }
-            )
-            .tint(.red)
+                )
+                .tint(.red)
+            }
         }
         .padding()
         .background {
@@ -340,51 +358,83 @@ struct FriendsSection: View {
                 .fill(Color(uiColor: .systemBackground))
                 .shadow(color: .black.opacity(0.05), radius: 10)
         }
+        .onAppear {
+            loadFriends()
+        }
+    }
+
+    private func loadFriends() {
+        isLoading = true
+
+        Task {
+            do {
+                let friendsList = try await FriendManager.shared.getFriends()
+                await MainActor.run {
+                    friends = friendsList
+                    isLoading = false
+                }
+            } catch {
+                print("Erreur lors du chargement des amis: \(error.localizedDescription)")
+                await MainActor.run {
+                    isLoading = false
+                }
+            }
+        }
     }
 }
 
-struct Friend: Identifiable {
-    let id: String
-    let name: String
-    let email: String
-    let joinDate: String
-    let profileColor: Color
-}
+struct RealFriendCard: View {
+    let friend: UserData
+    let onUpdate: () -> Void
+    @State private var showDeleteConfirmation = false
 
-struct FriendCard: View {
-    let friend: Friend
-    
+    var displayName: String {
+        friend.displayName ?? friend.username
+    }
+
+    var friendSince: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter.string(from: friend.createdAt)
+    }
+
+    var profileColor: Color {
+        let colors: [Color] = [.blue, .purple, .green, .orange, .pink, .cyan]
+        let index = abs(friend.uid.hashValue) % colors.count
+        return colors[index]
+    }
+
     var body: some View {
         HStack(spacing: 16) {
             Circle()
-                .fill(LinearGradient(colors: [friend.profileColor, friend.profileColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [profileColor, profileColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 50, height: 50)
                 .overlay {
-                    Text(friend.name.prefix(1).uppercased())
+                    Text(friend.username.prefix(1).uppercased())
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundStyle(.white)
                 }
-            
+
             VStack(alignment: .leading, spacing: 4) {
-                Text(friend.name)
+                Text(displayName)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                Text(friend.email)
+                Text("@\(friend.username)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.purple)
                 HStack(spacing: 4) {
                     Image(systemName: "sparkles")
                         .font(.caption2)
                         .foregroundStyle(.orange)
-                    Text("Depuis \(friend.joinDate)")
+                    Text("Depuis \(friendSince)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
-            
+
             Spacer()
-            
+
             VStack(alignment: .trailing, spacing: 8) {
                 Button {} label: {
                     HStack(spacing: 4) {
@@ -402,7 +452,7 @@ struct FriendCard: View {
                             .stroke(Color.red.opacity(0.3), lineWidth: 1)
                     }
                 }
-                
+
                 Button {} label: {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
@@ -414,8 +464,10 @@ struct FriendCard: View {
                     .foregroundStyle(.blue)
                 }
             }
-            
-            Button {} label: {
+
+            Button {
+                showDeleteConfirmation = true
+            } label: {
                 Image(systemName: "trash")
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -425,6 +477,27 @@ struct FriendCard: View {
         .background {
             RoundedRectangle(cornerRadius: 15)
                 .fill(Color(uiColor: .secondarySystemBackground))
+        }
+        .alert("Supprimer cet ami ?", isPresented: $showDeleteConfirmation) {
+            Button("Annuler", role: .cancel) {}
+            Button("Supprimer", role: .destructive) {
+                removeFriend()
+            }
+        } message: {
+            Text("Êtes-vous sûr de vouloir retirer @\(friend.username) de vos amis ?")
+        }
+    }
+
+    private func removeFriend() {
+        Task {
+            do {
+                try await FriendManager.shared.removeFriend(friend.uid)
+                await MainActor.run {
+                    onUpdate()
+                }
+            } catch {
+                print("Erreur suppression ami: \(error.localizedDescription)")
+            }
         }
     }
 }
@@ -587,15 +660,34 @@ struct EditProfileView: View {
 struct FindFriendsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
-    
+    @State private var searchResults: [UserData] = []
+    @State private var isSearching = false
+    @State private var errorMessage: String?
+    @State private var pendingRequests: [FriendRequest] = []
+
     var body: some View {
         NavigationStack {
-            VStack {
+            VStack(spacing: 0) {
+                // Barre de recherche
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                     TextField("Rechercher par email ou username", text: $searchText)
                         .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .onSubmit {
+                            performSearch()
+                        }
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                            searchResults = []
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .padding()
                 .background {
@@ -603,8 +695,40 @@ struct FindFriendsView: View {
                         .fill(Color(uiColor: .secondarySystemBackground))
                 }
                 .padding()
-                
-                if searchText.isEmpty {
+
+                // Demandes en attente
+                if !pendingRequests.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "bell.badge.fill")
+                                .foregroundStyle(.red)
+                            Text("Demandes en attente (\(pendingRequests.count))")
+                                .font(.headline)
+                        }
+                        .padding(.horizontal)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(pendingRequests) { request in
+                                    PendingRequestCard(request: request) {
+                                        loadPendingRequests()
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+
+                    Divider()
+                }
+
+                // Résultats de recherche
+                if isSearching {
+                    ProgressView()
+                        .padding()
+                    Spacer()
+                } else if searchText.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 60))
@@ -617,8 +741,38 @@ struct FindFriendsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding()
+                    Spacer()
+                } else if searchResults.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.secondary.opacity(0.5))
+                        Text("Aucun résultat")
+                            .font(.title3)
+                            .fontWeight(.medium)
+                        Text("Essaie une autre recherche")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(searchResults) { user in
+                                UserSearchResultCard(user: user)
+                            }
+                        }
+                        .padding()
+                    }
                 }
-                Spacer()
+
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding()
+                }
             }
             .navigationTitle("Trouver des Complices")
             .navigationBarTitleDisplayMode(.inline)
@@ -626,6 +780,274 @@ struct FindFriendsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") { dismiss() }
                 }
+            }
+            .onAppear {
+                loadPendingRequests()
+            }
+        }
+    }
+
+    private func performSearch() {
+        guard !searchText.isEmpty else {
+            searchResults = []
+            return
+        }
+
+        isSearching = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let results = try await FriendManager.shared.searchUsers(query: searchText)
+                await MainActor.run {
+                    searchResults = results
+                    isSearching = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Erreur lors de la recherche: \(error.localizedDescription)"
+                    isSearching = false
+                }
+            }
+        }
+    }
+
+    private func loadPendingRequests() {
+        Task {
+            do {
+                let requests = try await FriendManager.shared.getPendingFriendRequests()
+                await MainActor.run {
+                    pendingRequests = requests
+                }
+            } catch {
+                print("Erreur lors du chargement des demandes: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+// MARK: - User Search Result Card
+
+struct UserSearchResultCard: View {
+    let user: UserData
+    @State private var isSendingRequest = false
+    @State private var requestSent = false
+    @State private var alreadyFriends = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        HStack(spacing: 16) {
+            // Avatar
+            Circle()
+                .fill(LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 50, height: 50)
+                .overlay {
+                    Text(user.username.prefix(1).uppercased())
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                }
+
+            // Infos
+            VStack(alignment: .leading, spacing: 4) {
+                if let displayName = user.displayName, !displayName.isEmpty {
+                    Text(displayName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                Text("@\(user.username)")
+                    .font(.caption)
+                    .foregroundStyle(.purple)
+                Text(user.email)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Bouton d'action
+            if alreadyFriends {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Amis")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            } else if requestSent {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.fill")
+                        .foregroundStyle(.orange)
+                    Text("En attente")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            } else {
+                Button {
+                    sendFriendRequest()
+                } label: {
+                    if isSendingRequest {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "person.badge.plus.fill")
+                            .foregroundStyle(.blue)
+                    }
+                }
+                .disabled(isSendingRequest)
+            }
+        }
+        .padding()
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
+        }
+        .onAppear {
+            checkFriendshipStatus()
+        }
+    }
+
+    private func checkFriendshipStatus() {
+        Task {
+            do {
+                let isFriend = try await FriendManager.shared.checkFriendship(with: user.uid)
+                await MainActor.run {
+                    alreadyFriends = isFriend
+                }
+            } catch {
+                print("Erreur vérification amitié: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func sendFriendRequest() {
+        isSendingRequest = true
+        errorMessage = nil
+
+        Task {
+            do {
+                try await FriendManager.shared.sendFriendRequest(to: user.uid)
+                await MainActor.run {
+                    isSendingRequest = false
+                    requestSent = true
+                }
+            } catch {
+                await MainActor.run {
+                    isSendingRequest = false
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Pending Request Card
+
+struct PendingRequestCard: View {
+    let request: FriendRequest
+    let onUpdate: () -> Void
+    @State private var isProcessing = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // Avatar
+            Circle()
+                .fill(LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 60, height: 60)
+                .overlay {
+                    Text(request.fromUsername.prefix(1).uppercased())
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                }
+
+            // Infos
+            VStack(spacing: 4) {
+                if let displayName = request.fromDisplayName, !displayName.isEmpty {
+                    Text(displayName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                }
+                Text("@\(request.fromUsername)")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .lineLimit(1)
+            }
+
+            // Boutons
+            if isProcessing {
+                ProgressView()
+                    .scaleEffect(0.8)
+            } else {
+                HStack(spacing: 8) {
+                    Button {
+                        acceptRequest()
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color.green)
+                            .clipShape(Circle())
+                    }
+
+                    Button {
+                        rejectRequest()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                    }
+                }
+            }
+        }
+        .frame(width: 150)
+        .padding()
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 5)
+        }
+    }
+
+    private func acceptRequest() {
+        isProcessing = true
+
+        Task {
+            do {
+                try await FriendManager.shared.acceptFriendRequest(request.id)
+                await MainActor.run {
+                    isProcessing = false
+                    onUpdate()
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessing = false
+                }
+                print("Erreur acceptation: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func rejectRequest() {
+        isProcessing = true
+
+        Task {
+            do {
+                try await FriendManager.shared.rejectFriendRequest(request.id)
+                await MainActor.run {
+                    isProcessing = false
+                    onUpdate()
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessing = false
+                }
+                print("Erreur refus: \(error.localizedDescription)")
             }
         }
     }
