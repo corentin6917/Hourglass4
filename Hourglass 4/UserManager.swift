@@ -19,7 +19,8 @@ enum Gender: String, Codable, CaseIterable {
     }
 }
 
-struct UserData: Codable {
+struct UserData: Identifiable, Codable {
+    var id: String { uid } // Conformité à Identifiable
     let uid: String
     let email: String
     let username: String
