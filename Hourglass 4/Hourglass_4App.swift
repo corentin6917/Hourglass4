@@ -6,14 +6,27 @@
 //
 
 import SwiftUI
+import UIKit
 import SwiftData
+import FirebaseCore
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        FirebaseApp.configure()
+        return true
+    }
+}
 
 @main
 struct Hourglass_4App: App {
-    
+
+    // Enregistre l'AppDelegate pour l'initialisation de Firebase
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     // Configuration de SwiftData
     let modelContainer: ModelContainer
-    
+
     init() {
         do {
             modelContainer = try ModelContainer(
@@ -28,10 +41,10 @@ struct Hourglass_4App: App {
             fatalError("Impossible de créer le ModelContainer: \(error)")
         }
     }
-    
+
     var body: some Scene {
         WindowGroup {
-            ContentView(modelContext: modelContainer.mainContext)
+            RootView(modelContext: modelContainer.mainContext)
                 .modelContainer(modelContainer)
         }
     }

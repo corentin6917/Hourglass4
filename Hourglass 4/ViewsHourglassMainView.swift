@@ -11,44 +11,169 @@ import SwiftUI
 struct HourglassMainView: View {
     let viewModel: HourglassViewModel?
     
-    @State private var animateGrains = false
-    @State private var showSeasonMessage = false
-    
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 30) {
-                    // En-tête avec saison
-                    if let profile = viewModel?.userProfile {
-                        SeasonHeaderView(season: profile.currentSeason)
-                            .padding(.top)
+                VStack(spacing: 16) {
+                    // Header compact
+                    HStack(spacing: 10) {
+                        Image(systemName: "trophy")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.orange)
+                        Text("HOURGLASS")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Circle()
+                            .fill(LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 28, height: 28)
                     }
-                    
-                    // Le Sablier Visual
-                    HourglassVisualView(viewModel: viewModel)
-                        .frame(height: 400)
-                        .padding()
-                    
-                    // Statistiques du jour
-                    TodayStatsView(viewModel: viewModel)
-                        .padding(.horizontal)
-                    
-                    // Ratio de vie
-                    if let profile = viewModel?.userProfile {
-                        LifeRatioCard(profile: profile)
-                            .padding(.horizontal)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    // Title + subtitle
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(.orange)
+                            Text("Fil des Victoires")
+                                .font(.system(size: 28, weight: .bold))
+                        }
+                        Text("Les accomplissements de la communauté")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    
-                    // Actions rapides
-                    QuickActionsView(viewModel: viewModel)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+
+                    // Pills filters
+                    HStack(spacing: 10) {
+                        FilterPill(title: "Mes Complices", systemImage: "person.2.fill", selected: true, tint: .orange)
+                        FilterPill(title: "Cette semaine", systemImage: "trophy.fill", selected: false, tint: .gray.opacity(0.3))
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+
+                    // Info banner
+                    InfoBannerView(
+                        text: "Photos éphémères ! Les preuves photo deviennent visibles à partir de 20h et disparaissent après 24h.",
+                        tint: .yellow
+                    )
+                    .padding(.horizontal)
+
+                    // Empty state card
+                    EmptyStateVictoryView()
                         .padding(.horizontal)
-                    
-                    Spacer(minLength: 40)
+
+                    Spacer(minLength: 24)
                 }
             }
-            .navigationTitle("⏳ HOURGLASS")
-            .navigationBarTitleDisplayMode(.large)
+            .background(
+                LinearGradient(
+                    colors: [Color.yellow.opacity(0.06), Color.orange.opacity(0.03)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("HOURGLASS").font(.headline)
+                }
+            }
         }
+    }
+}
+
+struct FilterPill: View {
+    let title: String
+    let systemImage: String
+    let selected: Bool
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+            Text(title)
+                .fontWeight(.semibold)
+        }
+        .font(.subheadline)
+        .foregroundStyle(selected ? .white : .primary)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            Capsule(style: .continuous)
+                .fill(selected ? Color.orange : Color(.systemBackground))
+                .shadow(color: selected ? Color.orange.opacity(0.25) : .clear, radius: 6, y: 2)
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(selected ? Color.orange.opacity(0.001) : Color.gray.opacity(0.15), lineWidth: 1)
+        )
+    }
+}
+
+struct InfoBannerView: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.bubble.fill")
+                .foregroundStyle(.yellow)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.yellow.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.yellow.opacity(0.35), lineWidth: 1)
+        )
+    }
+}
+
+struct EmptyStateVictoryView: View {
+    var body: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.12))
+                    .frame(width: 120, height: 120)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(.orange)
+            }
+            Text("Aucune victoire visible")
+                .font(.title3)
+                .fontWeight(.bold)
+            Text("Les photos de tes amis deviennent visibles à partir de 20h et restent 24h.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white, Color.yellow.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.orange.opacity(0.12), lineWidth: 1)
+        )
     }
 }
 

@@ -5,6 +5,9 @@
 //
 
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
+import MessageUI
 
 struct ProfileView: View {
     let viewModel: HourglassViewModel?
@@ -114,92 +117,106 @@ struct ProfileHeaderSection: View {
 
 struct MainProfileCard: View {
     let viewModel: HourglassViewModel?
-    
+
+    @State private var userData: UserData? = nil
+    @State private var isLoading = true
+    @State private var showShareOptions = false
+
     var username: String {
-        viewModel?.userProfile?.username ?? "Utilisateur"
+        userData?.username ?? "Utilisateur"
     }
-    
+
+    var displayName: String {
+        userData?.displayName ?? Auth.auth().currentUser?.displayName ?? "Utilisateur"
+    }
+
     var email: String {
-        "corentin.soula@gmail.com"
+        userData?.email ?? Auth.auth().currentUser?.email ?? "email@exemple.com"
     }
-    
+
     var body: some View {
         VStack(spacing: 20) {
-            // Photo de profil
-            ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.purple, .pink],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+            if isLoading {
+                ProgressView()
+                    .padding()
+            } else {
+                // Photo de profil
+                ZStack(alignment: .bottomTrailing) {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 100, height: 100)
-                    .overlay {
-                        Text(username.prefix(1).uppercased())
-                            .font(.system(size: 40, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                
-                // Badge caméra
-                Circle()
-                    .fill(.purple)
-                    .frame(width: 32, height: 32)
-                    .overlay {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.white)
-                    }
-                    .offset(x: 5, y: 5)
-            }
-            
-            // Informations
-            VStack(spacing: 12) {
-                Text("Corentin SOULA")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("@corentin.soula")
-                    .font(.subheadline)
-                    .foregroundStyle(.purple)
-                
-                HStack(spacing: 6) {
-                    Image(systemName: "envelope.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(email)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .frame(width: 100, height: 100)
+                        .overlay {
+                            Text(username.prefix(1).uppercased())
+                                .font(.system(size: 40, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+
+                    // Badge caméra
+                    Circle()
+                        .fill(.purple)
+                        .frame(width: 32, height: 32)
+                        .overlay {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.white)
+                        }
+                        .offset(x: 5, y: 5)
                 }
-                
-                HStack(spacing: 6) {
-                    Image(systemName: "eye.fill")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                    Text("Profil public")
+
+                // Informations
+                VStack(spacing: 12) {
+                    Text(displayName)
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text("@\(username)")
                         .font(.subheadline)
-                        .foregroundStyle(.blue)
-                }
-                
-                Button {
-                } label: {
+                        .foregroundStyle(.purple)
+
                     HStack(spacing: 6) {
-                        Image(systemName: "square.and.arrow.up")
+                        Image(systemName: "envelope.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(email)
                             .font(.subheadline)
-                        Text("Partager mon profil")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye.fill")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                        Text("Profil public")
                             .font(.subheadline)
-                            .fontWeight(.medium)
+                            .foregroundStyle(.blue)
                     }
-                    .foregroundStyle(.purple)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background {
-                        Capsule()
-                            .stroke(Color.purple, lineWidth: 1.5)
+
+                    Button {
+                        showShareOptions = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline)
+                            Text("Partager mon profil")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.purple)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background {
+                            Capsule()
+                                .stroke(Color.purple, lineWidth: 1.5)
+                        }
                     }
+                    .padding(.top, 8)
                 }
-                .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity)
@@ -207,8 +224,52 @@ struct MainProfileCard: View {
         .background {
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color(uiColor: .systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 10)
+                .shadow(color: .black.opacity( 0.05), radius: 10)
         }
+        .onAppear {
+            loadUserData()
+        }
+        .sheet(isPresented: $showShareOptions) {
+            ShareOptionsView(shareText: generateShareText())
+        }
+    }
+
+    private func loadUserData() {
+        guard let currentUser = Auth.auth().currentUser else {
+            isLoading = false
+            return
+        }
+
+        Task {
+            do {
+                let data = try await UserManager.shared.getUserProfile(uid: currentUser.uid)
+                await MainActor.run {
+                    userData = data
+                    isLoading = false
+                }
+            } catch {
+                print("Erreur lors du chargement du profil: \(error.localizedDescription)")
+                await MainActor.run {
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    private func generateShareText() -> String {
+        var text = "Rejoins-moi sur Hourglass 4 !\n\n"
+        text += "👤 \(displayName)\n"
+        text += "✨ @\(username)\n"
+
+        if let birthDate = userData?.birthDate {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            text += "🎂 Né(e) le \(formatter.string(from: birthDate))\n"
+        }
+
+        text += "\n⏳ Télécharge l'app Hourglass 4 pour me suivre !"
+
+        return text
     }
 }
 
@@ -372,6 +433,7 @@ struct SettingsSection: View {
     @State private var showTutorial = false
     @State private var showLogoutConfirmation = false
     @State private var showDeleteConfirmation = false
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -431,7 +493,14 @@ struct SettingsSection: View {
         }
         .alert("Déconnexion", isPresented: $showLogoutConfirmation) {
             Button("Annuler", role: .cancel) { }
-            Button("Déconnexion", role: .destructive) {}
+            Button("Déconnexion", role: .destructive) {
+                do {
+                    try Auth.auth().signOut()
+                    dismiss() // Ferme la feuille de profil
+                } catch {
+                    print("Erreur de déconnexion: \(error)")
+                }
+            }
         }
         .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
             Button("Annuler", role: .cancel) { }
@@ -443,30 +512,72 @@ struct SettingsSection: View {
 struct EditProfileView: View {
     let viewModel: HourglassViewModel?
     @Environment(\.dismiss) private var dismiss
-    @State private var fullName = "Corentin SOULA"
-    @State private var username = "corentin.soula"
-    @State private var email = "soula.corentin@gmail.com"
-    
+    @State private var fullName = ""
+    @State private var username = ""
+    @State private var email = ""
+    @State private var isLoading = true
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Informations") {
-                    TextField("Nom complet", text: $fullName)
-                    TextField("Nom d'utilisateur", text: $username)
-                        .textInputAutocapitalization(.never)
-                    TextField("Email", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+            if isLoading {
+                ProgressView()
+            } else {
+                Form {
+                    Section("Informations") {
+                        TextField("Nom complet", text: $fullName)
+                        TextField("Nom d'utilisateur", text: $username)
+                            .textInputAutocapitalization(.never)
+                        TextField("Email", text: $email)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                            .disabled(true) // L'email ne peut pas être modifié facilement
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Section {
+                        Text("Note : La modification du profil sera disponible dans une prochaine version.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("Modifier le profil")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Annuler") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Enregistrer") { dismiss() }
+                            .disabled(true) // Désactivé pour l'instant
+                    }
                 }
             }
-            .navigationTitle("Modifier le profil")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
+        }
+        .onAppear {
+            loadUserData()
+        }
+    }
+
+    private func loadUserData() {
+        guard let currentUser = Auth.auth().currentUser else {
+            isLoading = false
+            return
+        }
+
+        Task {
+            do {
+                let data = try await UserManager.shared.getUserProfile(uid: currentUser.uid)
+                await MainActor.run {
+                    fullName = data?.displayName ?? ""
+                    username = data?.username ?? ""
+                    email = data?.email ?? currentUser.email ?? ""
+                    isLoading = false
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Enregistrer") { dismiss() }
+            } catch {
+                print("Erreur lors du chargement du profil: \(error.localizedDescription)")
+                await MainActor.run {
+                    email = currentUser.email ?? ""
+                    isLoading = false
                 }
             }
         }
@@ -520,6 +631,255 @@ struct FindFriendsView: View {
     }
 }
 
+// MARK: - Share Options View
+
+struct ShareOptionsView: View {
+    let shareText: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var showMessageComposer = false
+    @State private var showMailComposer = false
+    @State private var showCopyConfirmation = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 12) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    Text("Partager mon profil")
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text("Choisis comment partager ton profil")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 32)
+                .padding(.bottom, 32)
+
+                // Options de partage
+                VStack(spacing: 16) {
+                    // SMS
+                    Button {
+                        showMessageComposer = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.1))
+                                    .frame(width: 50, height: 50)
+
+                                Image(systemName: "message.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.green)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Message")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Partager par SMS")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(.secondarySystemBackground))
+                        }
+                    }
+
+                    // Mail
+                    Button {
+                        showMailComposer = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.1))
+                                    .frame(width: 50, height: 50)
+
+                                Image(systemName: "envelope.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.blue)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Mail")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Partager par email")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(.secondarySystemBackground))
+                        }
+                    }
+
+                    // Copier
+                    Button {
+                        UIPasteboard.general.string = shareText
+                        showCopyConfirmation = true
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showCopyConfirmation = false
+                        }
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.1))
+                                    .frame(width: 50, height: 50)
+
+                                Image(systemName: "doc.on.doc.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.purple)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Copier")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Copier dans le presse-papiers")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if showCopyConfirmation {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                    .transition(.scale.combined(with: .opacity))
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(.secondarySystemBackground))
+                        }
+                    }
+                }
+                .padding(.horizontal)
+
+                Spacer()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showMessageComposer) {
+                MessageComposeView(body: shareText)
+            }
+            .sheet(isPresented: $showMailComposer) {
+                MailComposeView(subject: "Rejoins-moi sur Hourglass 4 !", body: shareText)
+            }
+        }
+    }
+}
+
+// MARK: - Message Composer
+
+struct MessageComposeView: UIViewControllerRepresentable {
+    let body: String
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        let controller = MFMessageComposeViewController()
+        controller.body = body
+        controller.messageComposeDelegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: MFMessageComposeViewController, context: Context) {
+        // Rien à mettre à jour
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
+        let parent: MessageComposeView
+
+        init(_ parent: MessageComposeView) {
+            self.parent = parent
+        }
+
+        func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
+            parent.dismiss()
+        }
+    }
+}
+
+// MARK: - Mail Composer
+
+struct MailComposeView: UIViewControllerRepresentable {
+    let subject: String
+    let body: String
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let controller = MFMailComposeViewController()
+        controller.setSubject(subject)
+        controller.setMessageBody(body, isHTML: false)
+        controller.mailComposeDelegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {
+        // Rien à mettre à jour
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let parent: MailComposeView
+
+        init(_ parent: MailComposeView) {
+            self.parent = parent
+        }
+
+        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
+            parent.dismiss()
+        }
+    }
+}
+
 #Preview {
     ProfileView(viewModel: nil)
 }
+
