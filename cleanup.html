@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Nettoyage Data Connect</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #cc0000;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        h1 { color: #333; }
+        .warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Nettoyage Data Connect</h1>
+
+        <div class="warning">
+            <strong>⚠️ Attention!</strong> Cette action va supprimer tous les utilisateurs et amitiés de la base de données Data Connect.
+        </div>
+
+        <p>Étapes:</p>
+        <ol>
+            <li>D'abord, supprime les comptes dans Firebase Authentication (console web)</li>
+            <li>Ensuite, clique sur le bouton ci-dessous pour nettoyer Data Connect</li>
+        </ol>
+
+        <button onclick="cleanupDatabase()" id="cleanBtn">Nettoyer Data Connect</button>
+
+        <div id="output"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBHrXt4Tj0rfx-f7kw3ypczWGYGzY4yZbo",
+            authDomain: "hourglass4.firebaseapp.com",
+            projectId: "hourglass4",
+            storageBucket: "hourglass4.firebasestorage.app",
+            messagingSenderId: "686308823894",
+            appId: "1:686308823894:web:49e0cd0bb29bdf16c2d3a6",
+            measurementId: "G-FJXZL8J88K"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        function log(message) {
+            const output = document.getElementById('output');
+            output.textContent += message + '\n';
+            console.log(message);
+        }
+
+        window.cleanupDatabase = async function() {
+            const btn = document.getElementById('cleanBtn');
+            btn.disabled = true;
+
+            document.getElementById('output').textContent = '';
+            log('🧹 Démarrage du nettoyage...\n');
+
+            try {
+                // Utiliser l'API Data Connect directement via fetch
+                const projectId = 'hourglass4';
+                const location = 'europe-west9';
+                const serviceId = 'hourglass4-main-service';
+                const connectorId = 'default';
+
+                // D'abord, lister les utilisateurs
+                log('📋 Récupération des utilisateurs...');
+
+                const listUrl = `https://firebasedataconnect.googleapis.com/v1beta/projects/${projectId}/locations/${location}/services/${serviceId}/connectors/${connectorId}:executeQuery`;
+
+                const listResponse = await fetch(listUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: 'ListAllUsers',
+                        operationName: 'ListAllUsers'
+                    })
+                });
+
+                if (!listResponse.ok) {
+                    throw new Error(`Erreur lors de la récupération: ${listResponse.status}`);
+                }
+
+                const listData = await listResponse.json();
+                const users = listData.data?.users || [];
+
+                log(`✅ Trouvé ${users.length} utilisateurs:\n`);
+                users.forEach(u => log(`  - ${u.username} (${u.email})`));
+
+                // Supprimer chaque utilisateur
+                if (users.length > 0) {
+                    log('\n🗑️  Suppression...');
+
+                    const deleteUrl = `https://firebasedataconnect.googleapis.com/v1beta/projects/${projectId}/locations/${location}/services/${serviceId}/connectors/${connectorId}:executeMutation`;
+
+                    for (const user of users) {
+                        const deleteResponse = await fetch(deleteUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                name: 'DeleteUserByUsername',
+                                operationName: 'DeleteUserByUsername',
+                                variables: {
+                                    username: user.username
+                                }
+                            })
+                        });
+
+                        if (deleteResponse.ok) {
+                            log(`  ✅ Supprimé: ${user.username}`);
+                        } else {
+                            log(`  ❌ Erreur: ${user.username}`);
+                        }
+                    }
+
+                    log('\n✨ Nettoyage terminé!');
+                } else {
+                    log('\nℹ️  Aucun utilisateur à supprimer.');
+                }
+
+            } catch (error) {
+                log(`\n❌ Erreur: ${error.message}`);
+                console.error(error);
+            }
+
+            btn.disabled = false;
+        };
+    </script>
+</body>
+</html>

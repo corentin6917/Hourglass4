@@ -298,9 +298,10 @@ struct SignUpView: View {
                 return
             }
 
-            // Créer le profil dans Firestore
+            // IMPORTANT: Créer le profil dans Data Connect
             Task {
                 do {
+                    // Créer le profil utilisateur dans Firestore (users/{uid})
                     try await UserManager.shared.createUserProfile(
                         uid: user.uid,
                         email: e,
@@ -318,6 +319,9 @@ struct SignUpView: View {
                     }
 
                     await MainActor.run {
+                        // Sauvegarder le username pour l'utilisateur connecté
+                        FindFriendViewModelV2.saveCurrentUsername(u)
+
                         isLoading = false
                         infoMessage = "Compte créé avec succès."
                         // L'utilisateur sera automatiquement connecté et redirigé par RootView

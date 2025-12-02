@@ -119,8 +119,16 @@ struct LoginView: View {
                         password = ""
                         focusedField = .password
                     }
+                } else {
+                    Task {
+                        try? await UserManager.shared.ensureCurrentUserProfile()
+                        if let uid = Auth.auth().currentUser?.uid,
+                           let profile = try? await UserManager.shared.getUserProfile(uid: uid) {
+                            FindFriendViewModelV2.saveCurrentUsername(profile.username)
+                        }
+                    }
+                    // En cas de succès, RootView détectera l'état et basculera automatiquement.
                 }
-                // En cas de succès, RootView détectera l'état et basculera automatiquement.
             }
         }
     }

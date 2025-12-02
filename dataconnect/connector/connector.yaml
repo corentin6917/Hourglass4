@@ -1,0 +1,7 @@
+connectorId: default
+generate:
+  swiftSdk:
+    - outputDir: ../../generated/swift
+      package: Default
+    - outputDir: ../../../FirebaseDataConnectGenerated
+      package: DataConnectGenerated

@@ -20,6 +20,8 @@ struct ContentView: View {
             .onAppear {
                 // Initialiser le profil utilisateur si nécessaire
                 viewModel.initializeUserIfNeeded()
+                // S'assurer que le profil Firestore existe et est normalisé
+                Task { try? await UserManager.shared.ensureCurrentUserProfile() }
             }
     }
 }
@@ -37,3 +39,4 @@ struct ContentView: View {
         return Text("Erreur de prévisualisation: \(error.localizedDescription)")
     }
 }
+

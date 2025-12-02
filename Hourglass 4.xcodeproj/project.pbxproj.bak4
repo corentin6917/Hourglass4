@@ -38,8 +38,8 @@
 		1FFE0CAE2ED893C6009E1C8E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */; };
 		1FFE0CB02ED893E0009E1C8E /* LoginView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */; };
 		1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */; };
-		4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */; };
-		457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */; };
+	4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */; };
+	457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,8 +50,8 @@
 		1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LoginView 2.swift"; sourceTree = "<group>"; };
 		1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
-		744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindFriendViewModelV2.swift; sourceTree = "<group>"; };
-		AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseDataConnectHelper.swift; sourceTree = "<group>"; };
+	AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseDataConnectHelper.swift; sourceTree = "<group>"; };
+	744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindFriendViewModelV2.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -223,8 +223,6 @@
 				1FFE0CAE2ED893C6009E1C8E /* LoginView.swift in Sources */,
 				1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */,
 				1F6BF0432EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift in Sources */,
-				4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */,
-				457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

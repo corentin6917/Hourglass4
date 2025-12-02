@@ -1,0 +1,71 @@
+mutation CreateUser(
+  $username: String!
+  $email: String!
+  $displayName: String
+  $gender: String!
+  $birthDate: Date!
+  $usernameLower: String!
+) @auth(level: USER) {
+  user_insert(
+    data: {
+      username: $username
+      email: $email
+      displayName: $displayName
+      gender: $gender
+      birthDate: $birthDate
+      usernameLower: $usernameLower
+      createdAt_expr: "request.time"
+    }
+  )
+}
+
+mutation SendFriendRequest(
+  $requesterUsername: String!
+  $addresseeUsername: String!
+) @auth(level: USER) {
+  friendship_insert(
+    data: {
+      requesterUsername: $requesterUsername
+      addresseeUsername: $addresseeUsername
+      status: "PENDING"
+      createdAt_expr: "request.time"
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation AcceptFriendRequest(
+  $requesterUsername: String!
+  $addresseeUsername: String!
+) @auth(level: USER) {
+  friendship_update(
+    key: {
+      requesterUsername: $requesterUsername
+      addresseeUsername: $addresseeUsername
+    }
+    data: {
+      status: "ACCEPTED"
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation RejectFriendRequest(
+  $requesterUsername: String!
+  $addresseeUsername: String!
+) @auth(level: USER) {
+  friendship_update(
+    key: {
+      requesterUsername: $requesterUsername
+      addresseeUsername: $addresseeUsername
+    }
+    data: {
+      status: "REJECTED"
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation DeleteUserByUsername($username: String!) @auth(level: USER) {
+  user_delete(key: { username: $username })
+}

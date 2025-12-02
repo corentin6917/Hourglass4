@@ -1,0 +1,61 @@
+query SearchUserByUsername($usernameLower: String!) @auth(level: PUBLIC) {
+  users(where: { usernameLower: { eq: $usernameLower } }) {
+    username
+    email
+    displayName
+    gender
+    birthDate
+  }
+}
+
+query GetPendingFriendRequests($addresseeUsername: String!) @auth(level: USER) {
+  friendships(
+    where: {
+      addresseeUsername: { eq: $addresseeUsername }
+      status: { eq: "PENDING" }
+    }
+  ) {
+    requesterUsername
+    addresseeUsername
+    status
+    createdAt
+    requester {
+      username
+      displayName
+      email
+    }
+  }
+}
+
+query GetFriends($username: String!) @auth(level: USER) {
+  friendships(
+    where: {
+      _or: [
+        { requesterUsername: { eq: $username }, status: { eq: "ACCEPTED" } }
+        { addresseeUsername: { eq: $username }, status: { eq: "ACCEPTED" } }
+      ]
+    }
+  ) {
+    requesterUsername
+    addresseeUsername
+    status
+  }
+}
+
+query ListAllUsers @auth(level: USER) {
+  users {
+    username
+    usernameLower
+    email
+  }
+}
+
+query GetUserByEmail($email: String!) @auth(level: USER) {
+  users(where: { email: { eq: $email } }) {
+    username
+    email
+    displayName
+    gender
+    birthDate
+  }
+}

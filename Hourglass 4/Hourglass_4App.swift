@@ -9,11 +9,17 @@ import SwiftUI
 import UIKit
 import SwiftData
 import FirebaseCore
+import FirebaseAuth
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        FirebaseConfiguration.shared.setLoggerLevel(.debug) // Logs détaillés pour debug Firestore/Auth
         FirebaseApp.configure()
+        Auth.auth().addStateDidChangeListener { _, user in
+            guard user != nil else { return }
+            Task { try? await UserManager.shared.ensureCurrentUserProfile() }
+        }
         return true
     }
 }

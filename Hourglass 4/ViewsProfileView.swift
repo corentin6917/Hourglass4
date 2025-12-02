@@ -30,8 +30,8 @@ struct ProfileView: View {
                             .padding(.top, 24)
                         
                         // Section "Mes Sabliers Complices"
-                        FriendsSection(showFindFriends: $showFindFriends)
-                            .padding(.horizontal)
+            FriendsSection(showFindFriends: $showFindFriends)
+                .padding(.horizontal)
                         
                         // Section Paramètres
                         SettingsSection()
@@ -57,7 +57,7 @@ struct ProfileView: View {
                 EditProfileView(viewModel: viewModel)
             }
             .sheet(isPresented: $showFindFriends) {
-                FindFriendsView()
+                FindFriendView()
             }
         }
     }
@@ -506,6 +506,8 @@ struct SettingsSection: View {
     @State private var showTutorial = false
     @State private var showLogoutConfirmation = false
     @State private var showDeleteConfirmation = false
+    @State private var showDebugFirestore = false
+    @State private var showDebugFriends = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -526,6 +528,32 @@ struct SettingsSection: View {
                     Image(systemName: "arrow.counterclockwise")
                         .foregroundStyle(.blue)
                     Text("Revoir le tutoriel")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
+                .padding()
+            }
+            
+            Divider()
+
+            Button { showDebugFirestore = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "bolt.fill")
+                        .foregroundStyle(.purple)
+                    Text("Debug Firestore")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
+                .padding()
+            }
+            
+            Divider()
+
+            Button { showDebugFriends = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.2.fill")
+                        .foregroundStyle(.green)
+                    Text("Debug demandes/amis")
                         .foregroundStyle(.primary)
                     Spacer()
                 }
@@ -561,6 +589,9 @@ struct SettingsSection: View {
                 .fill(Color(uiColor: .systemBackground))
                 .shadow(color: .black.opacity(0.05), radius: 10)
         }
+        .sheet(isPresented: $showDebugFriends) {
+            DebugFriendRequestsView()
+        }
         .alert("Revoir le tutoriel", isPresented: $showTutorial) {
             Button("OK", role: .cancel) { }
         }
@@ -578,6 +609,12 @@ struct SettingsSection: View {
         .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
             Button("Annuler", role: .cancel) { }
             Button("Supprimer", role: .destructive) {}
+        }
+        .sheet(isPresented: $showDebugFirestore) {
+            DebugFirestorePingView()
+        }
+        .sheet(isPresented: $showDebugFriends) {
+            DebugFriendRequestsView()
         }
     }
 }
@@ -1304,4 +1341,3 @@ struct MailComposeView: UIViewControllerRepresentable {
 #Preview {
     ProfileView(viewModel: nil)
 }
-

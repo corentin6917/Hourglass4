@@ -45,6 +45,8 @@ final class AppleSignInHelper: ObservableObject {
             )
 
             _ = try await Auth.auth().signIn(with: credential)
+            // Create or normalize the Firestore user profile right after successful sign-in
+            try? await UserManager.shared.ensureCurrentUserProfile()
         case .failure(let error):
             throw error
         }
@@ -80,3 +82,4 @@ private func randomNonceString(length: Int = 32) -> String {
 
     return result
 }
+

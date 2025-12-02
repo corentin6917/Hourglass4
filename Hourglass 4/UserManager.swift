@@ -66,10 +66,11 @@ class UserManager {
     // Créer un profil utilisateur dans Firestore
     func createUserProfile(uid: String, email: String, username: String, displayName: String?, gender: Gender, birthDate: Date) async throws {
         let normalizedUsername = username.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedEmail = email.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
         let userData: [String: Any] = [
             "uid": uid,
-            "email": email,
+            "email": normalizedEmail, // Email en minuscules pour la recherche
             "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
             "username_lower": normalizedUsername, // Pour la recherche insensible à la casse
             "displayName": displayName ?? "",
@@ -106,6 +107,76 @@ class UserManager {
             gender: gender,
             birthDate: birthDateTimestamp.dateValue(),
             createdAt: createdAtTimestamp.dateValue()
+        )
+    }
+}
+
+import FirebaseAuth
+import FirebaseFirestore
+
+extension UserManager {
+    /// Ensure the current authenticated user has a Firestore profile document
+    /// and normalize important fields (username_lower, email in lowercase).
+    func ensureCurrentUserProfile() async throws {
+        guard let user = Auth.auth().currentUser else { return }
+
+        let docRef = db.collection("users").document(user.uid)
+        let snapshot = try await docRef.getDocument()
+
+        // If the document already exists, ensure normalization and return
+        if snapshot.exists {
+            if let data = snapshot.data() {
+                var updates: [String: Any] = [:]
+
+                if let username = data["username"] as? String {
+                    let lowered = username.lowercased()
+                    if (data["username_lower"] as? String) != lowered {
+                        updates["username_lower"] = lowered
+                    }
+                }
+
+                if let email = data["email"] as? String {
+                    let loweredEmail = email.lowercased()
+                    if email != loweredEmail {
+                        updates["email"] = loweredEmail
+                    }
+                }
+
+                if !updates.isEmpty {
+                    try await docRef.updateData(updates)
+                }
+            }
+            return
+        }
+
+        // Generate a base username from email/displayName or a random fallback
+        let baseUsername: String = {
+            if let email = user.email, let name = email.split(separator: "@").first {
+                return String(name).replacingOccurrences(of: ".", with: "_").lowercased()
+            } else if let display = user.displayName, !display.isEmpty {
+                return display.replacingOccurrences(of: " ", with: "_").lowercased()
+            } else {
+                return "user_" + UUID().uuidString.prefix(6).lowercased()
+            }
+        }()
+
+        // Ensure the username is unique by appending a numeric suffix if necessary
+        var candidate = baseUsername
+        var suffix = 0
+        while true {
+            let available = try await isUsernameAvailable(candidate)
+            if available { break }
+            suffix += 1
+            candidate = baseUsername + String(suffix)
+        }
+
+        try await createUserProfile(
+            uid: user.uid,
+            email: user.email ?? "",
+            username: candidate,
+            displayName: user.displayName,
+            gender: .notSpecified,
+            birthDate: Date()
         )
     }
 }

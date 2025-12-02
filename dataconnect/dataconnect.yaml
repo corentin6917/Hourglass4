@@ -1,0 +1,11 @@
+specVersion: "v1beta"
+serviceId: "hourglass4-main-service"
+location: "europe-west9"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "hourglass4_main"
+      cloudSql:
+        instanceId: "hourglass4-instance"
+connectorDirs: ["./connector"]

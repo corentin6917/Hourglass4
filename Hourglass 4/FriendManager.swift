@@ -52,7 +52,7 @@ class FriendManager {
 
     // MARK: - Recherche d'utilisateurs
 
-    /// Recherche des utilisateurs par nom d'utilisateur ou email
+    /// Recherche des utilisateurs par nom d'utilisateur ou email (correspondance exacte, insensible à la casse)
     func searchUsers(query: String) async throws -> [UserData] {
         let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -60,57 +60,74 @@ class FriendManager {
             return []
         }
 
-        // Recherche par nom d'utilisateur
-        let usernameSnapshot = try await db.collection("users")
-            .whereField("username_lower", isGreaterThanOrEqualTo: normalizedQuery)
-            .whereField("username_lower", isLessThan: normalizedQuery + "\u{f8ff}")
-            .limit(to: 10)
-            .getDocuments()
-
-        // Recherche par email
-        let emailSnapshot = try await db.collection("users")
-            .whereField("email", isGreaterThanOrEqualTo: normalizedQuery)
-            .whereField("email", isLessThan: normalizedQuery + "\u{f8ff}")
-            .limit(to: 10)
-            .getDocuments()
-
         var users: [UserData] = []
         var userIds = Set<String>()
 
-        // Combiner les résultats et éviter les doublons
-        for document in usernameSnapshot.documents + emailSnapshot.documents {
+        // Recherche 1 : Par nom d'utilisateur (username_lower) en recherche préfixe
+        let end = normalizedQuery + "\u{f8ff}"
+        let usernameSnapshot = try await db.collection("users")
+            .whereField("username_lower", isGreaterThanOrEqualTo: normalizedQuery)
+            .whereField("username_lower", isLessThan: end)
+            .limit(to: 10)
+            .getDocuments()
+
+        for document in usernameSnapshot.documents {
             let data = document.data()
             let uid = data["uid"] as? String ?? document.documentID
 
-            // Éviter les doublons
+            // Ne pas inclure l'utilisateur actuel
+            if uid == Auth.auth().currentUser?.uid { continue }
             if userIds.contains(uid) { continue }
             userIds.insert(uid)
 
+            if let user = parseUserData(from: data, uid: uid) {
+                users.append(user)
+            }
+        }
+
+        // Recherche 2 : Par email (en minuscules)
+        let emailLower = normalizedQuery
+        let emailSnapshot = try await db.collection("users")
+            .whereField("email", isEqualTo: emailLower)
+            .limit(to: 5)
+            .getDocuments()
+
+        for document in emailSnapshot.documents {
+            let data = document.data()
+            let uid = data["uid"] as? String ?? document.documentID
+
             // Ne pas inclure l'utilisateur actuel
             if uid == Auth.auth().currentUser?.uid { continue }
+            if userIds.contains(uid) { continue }
+            userIds.insert(uid)
 
-            let email = data["email"] as? String ?? ""
-            let username = data["username"] as? String ?? ""
-            let displayName = data["displayName"] as? String
-            let genderString = data["gender"] as? String ?? Gender.notSpecified.rawValue
-            let gender = Gender(rawValue: genderString) ?? .notSpecified
-            let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
-            let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
-
-            let user = UserData(
-                uid: uid,
-                email: email,
-                username: username,
-                displayName: displayName,
-                gender: gender,
-                birthDate: birthDateTimestamp.dateValue(),
-                createdAt: createdAtTimestamp.dateValue()
-            )
-
-            users.append(user)
+            if let user = parseUserData(from: data, uid: uid) {
+                users.append(user)
+            }
         }
 
         return users
+    }
+
+    /// Parse les données Firestore en UserData
+    private func parseUserData(from data: [String: Any], uid: String) -> UserData? {
+        let email = data["email"] as? String ?? ""
+        let username = data["username"] as? String ?? ""
+        let displayName = data["displayName"] as? String
+        let genderString = data["gender"] as? String ?? Gender.notSpecified.rawValue
+        let gender = Gender(rawValue: genderString) ?? .notSpecified
+        let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
+        let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
+
+        return UserData(
+            uid: uid,
+            email: email,
+            username: username,
+            displayName: displayName,
+            gender: gender,
+            birthDate: birthDateTimestamp.dateValue(),
+            createdAt: createdAtTimestamp.dateValue()
+        )
     }
 
     // MARK: - Demandes d'amis
@@ -120,6 +137,9 @@ class FriendManager {
         guard let currentUser = Auth.auth().currentUser else {
             throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"])
         }
+
+        // S'assurer que le profil Firestore de l'utilisateur courant existe/est normalisé
+        try? await UserManager.shared.ensureCurrentUserProfile()
 
         // Récupérer les infos de l'utilisateur actuel
         guard let currentUserData = try await UserManager.shared.getUserProfile(uid: currentUser.uid) else {
@@ -324,3 +344,4 @@ class FriendManager {
         }
     }
 }
+

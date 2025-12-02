@@ -1,0 +1,19 @@
+type User @table(key: ["username"]) {
+  username: String!
+  email: String!
+  usernameLower: String!
+  displayName: String
+  gender: String!
+  birthDate: Date!
+  createdAt: Timestamp!
+}
+
+type Friendship @table(key: ["requesterUsername", "addresseeUsername"]) {
+  requesterUsername: String!
+  addresseeUsername: String!
+  status: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  requester: User! @ref(fields: "requesterUsername", references: "username")
+  addressee: User! @ref(fields: "addresseeUsername", references: "username")
+}

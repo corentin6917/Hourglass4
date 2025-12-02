@@ -1,0 +1,123 @@
+# Mutations
+
+mutation CreateUser(
+  $uid: String!
+  $email: String!
+  $username: String!
+  $displayName: String
+  $gender: Gender!
+  $birthDate: Date!
+) @auth(level: USER) {
+  user_insert(
+    data: {
+      id: $uid
+      email: $email
+      username: $username
+      username_lower: $username
+      displayName: $displayName
+      gender: $gender
+      birthDate: $birthDate
+    }
+  )
+}
+
+mutation CreateFriendship(
+  $requesterId: String!
+  $addresseeId: String!
+) @auth(level: USER) {
+  friendship_insert(
+    data: {
+      requesterId: $requesterId
+      addresseeId: $addresseeId
+      status: PENDING
+    }
+  )
+}
+
+mutation UpdateFriendshipStatus(
+  $friendshipId: UUID!
+  $status: FriendshipStatus!
+) @auth(level: USER) {
+  friendship_update(
+    id: $friendshipId
+    data: {
+      status: $status
+      updatedAt: request.time
+    }
+  )
+}
+
+# Queries
+
+query GetUserByUsername($username: String!) @auth(level: PUBLIC) {
+  users(where: { username_lower: { eq: $username } }) {
+    id
+    email
+    username
+    displayName
+    gender
+    birthDate
+    createdAt
+  }
+}
+
+query GetUserByEmail($email: String!) @auth(level: PUBLIC) {
+  users(where: { email: { eq: $email } }) {
+    id
+    email
+    username
+    displayName
+    gender
+    birthDate
+    createdAt
+  }
+}
+
+query GetFriends($userId: String!) @auth(level: USER) {
+  friendships(
+    where: {
+      _or: [
+        { requesterId: { eq: $userId } }
+        { addresseeId: { eq: $userId } }
+      ]
+      status: { eq: ACCEPTED }
+    }
+  ) {
+    id
+    requester {
+      id
+      username
+      displayName
+    }
+    addressee {
+      id
+      username
+      displayName
+    }
+    createdAt
+  }
+}
+
+query GetPendingFriendRequests($userId: String!) @auth(level: USER) {
+  friendships(
+    where: {
+      addresseeId: { eq: $userId }
+      status: { eq: PENDING }
+    }
+    orderBy: [{ createdAt: DESC }]
+  ) {
+    id
+    requesterId
+    requester {
+      id
+      username
+      displayName
+      email
+      gender
+      birthDate
+      createdAt
+    }
+    status
+    createdAt
+  }
+}

@@ -46,40 +46,62 @@ struct VictoryFeedView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // En-tête style maquette
-                    VictoryFeedHeaderView()
-                        .padding(.top, 4)
-                    
-                    // Filtres en capsules
-                    VictoryFilterBar(audience: $audience, period: $period)
+                VStack(spacing: 24) {
+                    // Header compact
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.title2)
+                            .foregroundStyle(.orange)
+                        Text("HOURGLASS")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+
+                    VStack(spacing: 6) {
+                        Text("Fil des Victoires")
+                            .font(.system(size: 30, weight: .bold))
+                        Text("Les accomplissements de la communauté")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                    // Segmented pills
+                    SegmentedVictoryPicker(audience: $audience, period: $period)
                         .padding(.horizontal)
-                    
-                    // Bannière d'information jaune
+
+                    // Info banner
                     EphemeralPhotosInfoBanner()
                         .padding(.horizontal)
-                    
-                    // Liste des victoires ou état vide
-                    if completedGoals.isEmpty {
-                        VictoryEmptyStateView()
-                            .padding(.horizontal)
-                    } else {
-                        LazyVStack(spacing: 12) {
-                            ForEach(completedGoals) { goal in
-                                VictoryCardView(goal: goal)
-                                    .padding(.horizontal)
+
+                    // Contenu centré
+                    Group {
+                        if completedGoals.isEmpty {
+                            VictoryEmptyStateView()
+                        } else {
+                            LazyVStack(spacing: 12) {
+                                ForEach(completedGoals) { goal in
+                                    VictoryCardView(goal: goal)
+                                        .padding(.horizontal)
+                                }
                             }
                         }
-                        .padding(.top, 4)
                     }
+                    .frame(maxWidth: 700)
+                    .padding(.horizontal)
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, 24)
             }
             .background(
                 LinearGradient(
-                    gradient: Gradient(colors: [Color(.systemBackground), Color.orange.opacity(0.03)]),
-                    startPoint: UnitPoint.top,
-                    endPoint: UnitPoint.bottom
+                    colors: [
+                        Color(red: 1.0, green: 0.98, blue: 0.94),
+                        Color.white
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
                 .ignoresSafeArea()
             )
@@ -108,26 +130,27 @@ struct VictoryFeedView: View {
 struct VictoryEmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 40, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 4)
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.12))
+                    .frame(width: 100, height: 100)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(.orange)
+            }
 
-            Text("Aucune victoire pour l'instant")
-                .font(.headline)
+            Text("Aucune victoire visible")
+                .font(.title3).bold()
                 .multilineTextAlignment(.center)
 
-            Text("Complétez un objectif pour voir vos victoires ici.")
+            Text("Les photos de tes amis deviennent visibles à partir de 20h et restent 24h.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .padding(.vertical, 24)
     }
 }
 
@@ -137,4 +160,65 @@ struct VictoryEmptyStateView: View {
             .padding()
     }
     .background(Color(.systemBackground))
+}
+
+// MARK: - Segmented Picker
+
+struct SegmentedVictoryPicker: View {
+    @Binding var audience: VictoryAudience
+    @Binding var period: VictoryPeriod
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SegmentButton(
+                title: "Mes Complices",
+                systemImage: "person.2.fill",
+                isSelected: audience == .friends
+            ) {
+                audience = .friends
+            }
+
+            SegmentButton(
+                title: "Cette semaine",
+                systemImage: "trophy.fill",
+                isSelected: period == .thisWeek
+            ) {
+                period = .thisWeek
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+        )
+    }
+}
+
+private struct SegmentButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                Text(title)
+                .fontWeight(.semibold)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .foregroundStyle(isSelected ? .white : .primary)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.orange : Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.orange.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+            )
+        }
+    }
 }

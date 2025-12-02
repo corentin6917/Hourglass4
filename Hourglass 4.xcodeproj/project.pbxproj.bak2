@@ -38,20 +38,18 @@
 		1FFE0CAE2ED893C6009E1C8E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */; };
 		1FFE0CB02ED893E0009E1C8E /* LoginView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */; };
 		1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */; };
-		4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */; };
-		457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1F6BF0422EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewsSimpleRealisticHourglass.swift; sourceTree = "<group>"; };
+		1FF0BB4C2EDD9942005FE2B5 /* FindFriendViewModelV2 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FindFriendViewModelV2 2.swift"; sourceTree = "<group>"; };
+		1FF0BB4D2EDD9942005FE2B5 /* FirebaseDataConnectHelper 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FirebaseDataConnectHelper 2.swift"; sourceTree = "<group>"; };
 		1FFE0BFF2ED8607A009E1C8E /* Hourglass 4.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Hourglass 4.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1FFE0CA92ED89253009E1C8E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1FFE0CAB2ED8931C009E1C8E /* AppleSignInHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInHelper.swift; sourceTree = "<group>"; };
 		1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LoginView 2.swift"; sourceTree = "<group>"; };
 		1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
-		744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindFriendViewModelV2.swift; sourceTree = "<group>"; };
-		AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseDataConnectHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -101,6 +99,8 @@
 		1FF883FB2EB2600E00E08310 = {
 			isa = PBXGroup;
 			children = (
+				1FF0BB4C2EDD9942005FE2B5 /* FindFriendViewModelV2 2.swift */,
+				1FF0BB4D2EDD9942005FE2B5 /* FirebaseDataConnectHelper 2.swift */,
 				1FF884062EB2600E00E08310 /* Hourglass 4 */,
 				1F6BF0422EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift */,
 				1FFE0BFF2ED8607A009E1C8E /* Hourglass 4.app */,
@@ -109,8 +109,6 @@
 				1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */,
 				1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */,
 				1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */,
-				AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */,
-				744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -220,11 +218,11 @@
 				1FFE0CAA2ED89253009E1C8E /* RootView.swift in Sources */,
 				1FFE0CAC2ED8931C009E1C8E /* AppleSignInHelper.swift in Sources */,
 				1FFE0CB02ED893E0009E1C8E /* LoginView 2.swift in Sources */,
+				1FF0BB4E2EDD9942005FE2B5 /* FirebaseDataConnectHelper 2.swift in Sources */,
+				1FF0BB4F2EDD9942005FE2B5 /* FindFriendViewModelV2 2.swift in Sources */,
 				1FFE0CAE2ED893C6009E1C8E /* LoginView.swift in Sources */,
 				1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */,
 				1F6BF0432EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift in Sources */,
-				4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */,
-				457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
