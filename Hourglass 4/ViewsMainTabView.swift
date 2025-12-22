@@ -12,7 +12,7 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 1 // Commence sur "Sablier"
     let viewModel: HourglassViewModel?
-    
+
     var body: some View {
         TabView(selection: $selectedTab) {
             // Onglet 1: Fil des Victoires
@@ -21,14 +21,14 @@ struct MainTabView: View {
                     Label("Fil", systemImage: "sparkles")
                 }
                 .tag(0)
-            
+
             // Onglet 2: Sablier (centre)
             HourglassView(viewModel: viewModel)
                 .tabItem {
                     Label("Sablier", systemImage: "hourglass")
                 }
                 .tag(1)
-            
+
             // Onglet 3: Objectifs
             ObjectivesView(viewModel: viewModel)
                 .tabItem {

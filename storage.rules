@@ -1,0 +1,30 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Fonction helper pour vérifier l'authentification
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fonction pour vérifier que c'est le propriétaire du fichier
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Photos de profil - dans le dossier profileImages/{userId}/
+    match /profileImages/{userId}/{allPaths=**} {
+      // Lecture : tous les utilisateurs authentifiés peuvent voir les photos de profil
+      allow read: if isAuthenticated();
+
+      // Écriture : seulement le propriétaire peut uploader/modifier/supprimer sa photo
+      allow write: if isOwner(userId);
+
+      // Limite de taille : max 5MB pour les photos de profil
+      allow create: if isOwner(userId)
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

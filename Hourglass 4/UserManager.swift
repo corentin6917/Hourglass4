@@ -28,9 +28,30 @@ struct UserData: Identifiable, Codable {
     let gender: Gender
     let birthDate: Date
     let createdAt: Date
+    let profileImageURL: String?
+
+    init(
+        uid: String,
+        email: String,
+        username: String,
+        displayName: String?,
+        gender: Gender,
+        birthDate: Date,
+        createdAt: Date,
+        profileImageURL: String? = nil
+    ) {
+        self.uid = uid
+        self.email = email
+        self.username = username
+        self.displayName = displayName
+        self.gender = gender
+        self.birthDate = birthDate
+        self.createdAt = createdAt
+        self.profileImageURL = profileImageURL
+    }
 
     var dictionary: [String: Any] {
-        return [
+        var dict: [String: Any] = [
             "uid": uid,
             "email": email,
             "username": username,
@@ -39,6 +60,12 @@ struct UserData: Identifiable, Codable {
             "birthDate": Timestamp(date: birthDate),
             "createdAt": Timestamp(date: createdAt)
         ]
+
+        if let imageURL = profileImageURL {
+            dict["profileImageURL"] = imageURL
+        }
+
+        return dict
     }
 }
 
@@ -98,6 +125,7 @@ class UserManager {
         let gender = Gender(rawValue: genderString) ?? .notSpecified
         let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
         let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
+        let profileImageURL = data["profileImageURL"] as? String
 
         return UserData(
             uid: uid,
@@ -106,7 +134,8 @@ class UserManager {
             displayName: displayName,
             gender: gender,
             birthDate: birthDateTimestamp.dateValue(),
-            createdAt: createdAtTimestamp.dateValue()
+            createdAt: createdAtTimestamp.dateValue(),
+            profileImageURL: profileImageURL
         )
     }
 }

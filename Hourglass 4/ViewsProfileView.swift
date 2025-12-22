@@ -5,15 +5,18 @@
 //
 
 import SwiftUI
+import UIKit
 import FirebaseAuth
 import FirebaseFirestore
 import MessageUI
 
 struct ProfileView: View {
     let viewModel: HourglassViewModel?
-    
+
     @State private var showEditProfile = false
     @State private var showFindFriends = false
+    @State private var showMessages = false
+    @State private var unreadMessagesCount = 0
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -44,6 +47,32 @@ struct ProfileView: View {
             .navigationTitle("Mon Compte")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                // Bouton Messages avec badge
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showMessages = true
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "envelope.fill")
+                                .foregroundStyle(.purple)
+
+                            if unreadMessagesCount > 0 {
+                                Text("\(unreadMessagesCount)")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .padding(4)
+                                    .background {
+                                        Circle()
+                                            .fill(.red)
+                                    }
+                                    .offset(x: 8, y: -8)
+                            }
+                        }
+                    }
+                }
+
+                // Bouton Fermer
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         dismiss()
@@ -58,6 +87,15 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showFindFriends) {
                 FindFriendView()
+            }
+            .sheet(isPresented: $showMessages) {
+                NotificationsView(viewModel: viewModel)
+            }
+            .onAppear {
+                Task {
+                    // Charger le nombre de messages non lus
+                    unreadMessagesCount = (try? await FriendMessageManager.shared.getUnreadMessagesCount()) ?? 0
+                }
             }
         }
     }
@@ -121,6 +159,10 @@ struct MainProfileCard: View {
     @State private var userData: UserData? = nil
     @State private var isLoading = true
     @State private var showShareOptions = false
+    @State private var showImagePicker = false
+    @State private var selectedImage: UIImage? = nil
+    @State private var isUploadingImage = false
+    @State private var uploadError: String? = nil
 
     var username: String {
         userData?.username ?? "Utilisateur"
@@ -142,31 +184,37 @@ struct MainProfileCard: View {
             } else {
                 // Photo de profil
                 ZStack(alignment: .bottomTrailing) {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.purple, .pink],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                    if isUploadingImage {
+                        // Afficher un spinner pendant l'upload
+                        ZStack {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 100, height: 100)
+                            ProgressView()
+                        }
+                    } else {
+                        ProfileImageView(
+                            imageURL: userData?.profileImageURL,
+                            username: username,
+                            size: 100,
+                            gradientColors: [.purple, .pink]
                         )
-                        .frame(width: 100, height: 100)
-                        .overlay {
-                            Text(username.prefix(1).uppercased())
-                                .font(.system(size: 40, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
+                    }
 
-                    // Badge caméra
-                    Circle()
-                        .fill(.purple)
-                        .frame(width: 32, height: 32)
-                        .overlay {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.white)
-                        }
-                        .offset(x: 5, y: 5)
+                    // Badge caméra cliquable
+                    Button {
+                        showImagePicker = true
+                    } label: {
+                        Circle()
+                            .fill(.purple)
+                            .frame(width: 32, height: 32)
+                            .overlay {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.white)
+                            }
+                    }
+                    .offset(x: 5, y: 5)
                 }
 
                 // Informations
@@ -232,6 +280,23 @@ struct MainProfileCard: View {
         .sheet(isPresented: $showShareOptions) {
             ShareOptionsView(shareText: generateShareText())
         }
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker(selectedImage: $selectedImage)
+        }
+        .onChange(of: selectedImage) { oldValue, newValue in
+            if let image = newValue {
+                uploadProfileImage(image)
+            }
+        }
+        .alert("Erreur d'upload", isPresented: .constant(uploadError != nil)) {
+            Button("OK") {
+                uploadError = nil
+            }
+        } message: {
+            if let error = uploadError {
+                Text(error)
+            }
+        }
     }
 
     private func loadUserData() {
@@ -271,6 +336,35 @@ struct MainProfileCard: View {
 
         return text
     }
+
+    private func uploadProfileImage(_ image: UIImage) {
+        isUploadingImage = true
+        uploadError = nil
+
+        Task {
+            do {
+                let imageURL = try await ProfileImageManager.shared.uploadProfileImage(image)
+
+                // Recharger le profil utilisateur pour afficher la nouvelle photo
+                await MainActor.run {
+                    if userData != nil {
+                        loadUserData()
+                    }
+                    isUploadingImage = false
+                    selectedImage = nil
+                }
+
+                print("✅ Photo de profil uploadée avec succès: \(imageURL)")
+            } catch {
+                await MainActor.run {
+                    uploadError = error.localizedDescription
+                    isUploadingImage = false
+                    selectedImage = nil
+                }
+                print("❌ Erreur lors de l'upload de la photo: \(error.localizedDescription)")
+            }
+        }
+    }
 }
 
 // MARK: - Friends Section
@@ -279,6 +373,7 @@ struct FriendsSection: View {
     @Binding var showFindFriends: Bool
     @State private var friends: [UserData] = []
     @State private var isLoading = true
+    @State private var errorText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -293,6 +388,13 @@ struct FriendsSection: View {
                 
                 Spacer()
                 
+                Button {
+                    loadFriends()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(.blue)
+                }
+
                 Button {
                     showFindFriends = true
                 } label: {
@@ -324,6 +426,11 @@ struct FriendsSection: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    if let errorText {
+                        Text(errorText)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    }
                 }
                 .padding()
             } else {
@@ -365,6 +472,7 @@ struct FriendsSection: View {
 
     private func loadFriends() {
         isLoading = true
+        errorText = nil
 
         Task {
             do {
@@ -377,6 +485,7 @@ struct FriendsSection: View {
                 print("Erreur lors du chargement des amis: \(error.localizedDescription)")
                 await MainActor.run {
                     isLoading = false
+                    errorText = "Erreur: \(error.localizedDescription)"
                 }
             }
         }
@@ -387,6 +496,7 @@ struct RealFriendCard: View {
     let friend: UserData
     let onUpdate: () -> Void
     @State private var showDeleteConfirmation = false
+    @State private var showFriendProfile = false
 
     var displayName: String {
         friend.displayName ?? friend.username
@@ -453,7 +563,9 @@ struct RealFriendCard: View {
                     }
                 }
 
-                Button {} label: {
+                Button {
+                    showFriendProfile = true
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
                             .font(.caption2)
@@ -486,6 +598,9 @@ struct RealFriendCard: View {
         } message: {
             Text("Êtes-vous sûr de vouloir retirer @\(friend.username) de vos amis ?")
         }
+        .sheet(isPresented: $showFriendProfile) {
+            FriendProfileView(friend: friend)
+        }
     }
 
     private func removeFriend() {
@@ -506,8 +621,6 @@ struct SettingsSection: View {
     @State private var showTutorial = false
     @State private var showLogoutConfirmation = false
     @State private var showDeleteConfirmation = false
-    @State private var showDebugFirestore = false
-    @State private var showDebugFriends = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -522,7 +635,7 @@ struct SettingsSection: View {
             .padding(.bottom, 8)
             
             Divider()
-            
+
             Button { showTutorial = true } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "arrow.counterclockwise")
@@ -533,33 +646,7 @@ struct SettingsSection: View {
                 }
                 .padding()
             }
-            
-            Divider()
 
-            Button { showDebugFirestore = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "bolt.fill")
-                        .foregroundStyle(.purple)
-                    Text("Debug Firestore")
-                        .foregroundStyle(.primary)
-                    Spacer()
-                }
-                .padding()
-            }
-            
-            Divider()
-
-            Button { showDebugFriends = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.2.fill")
-                        .foregroundStyle(.green)
-                    Text("Debug demandes/amis")
-                        .foregroundStyle(.primary)
-                    Spacer()
-                }
-                .padding()
-            }
-            
             Divider()
             
             Button { showLogoutConfirmation = true } label: {
@@ -589,9 +676,6 @@ struct SettingsSection: View {
                 .fill(Color(uiColor: .systemBackground))
                 .shadow(color: .black.opacity(0.05), radius: 10)
         }
-        .sheet(isPresented: $showDebugFriends) {
-            DebugFriendRequestsView()
-        }
         .alert("Revoir le tutoriel", isPresented: $showTutorial) {
             Button("OK", role: .cancel) { }
         }
@@ -610,12 +694,6 @@ struct SettingsSection: View {
             Button("Annuler", role: .cancel) { }
             Button("Supprimer", role: .destructive) {}
         }
-        .sheet(isPresented: $showDebugFirestore) {
-            DebugFirestorePingView()
-        }
-        .sheet(isPresented: $showDebugFriends) {
-            DebugFriendRequestsView()
-        }
     }
 }
 
@@ -625,7 +703,12 @@ struct EditProfileView: View {
     @State private var fullName = ""
     @State private var username = ""
     @State private var email = ""
+    @State private var selectedGender: Gender = .notSpecified
+    @State private var birthDate = Date()
     @State private var isLoading = true
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var successMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -633,7 +716,7 @@ struct EditProfileView: View {
                 ProgressView()
             } else {
                 Form {
-                    Section("Informations") {
+                    Section("Informations personnelles") {
                         TextField("Nom complet", text: $fullName)
                         TextField("Nom d'utilisateur", text: $username)
                             .textInputAutocapitalization(.never)
@@ -644,10 +727,35 @@ struct EditProfileView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Section {
-                        Text("Note : La modification du profil sera disponible dans une prochaine version.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    Section("Informations supplémentaires") {
+                        Picker("Genre", selection: $selectedGender) {
+                            ForEach(Gender.allCases, id: \.self) { gender in
+                                Text(gender.displayName).tag(gender)
+                            }
+                        }
+
+                        DatePicker(
+                            "Date de naissance",
+                            selection: $birthDate,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+                    }
+
+                    if let errorMessage {
+                        Section {
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    if let successMessage {
+                        Section {
+                            Text(successMessage)
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
                     }
                 }
                 .navigationTitle("Modifier le profil")
@@ -657,8 +765,16 @@ struct EditProfileView: View {
                         Button("Annuler") { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Enregistrer") { dismiss() }
-                            .disabled(true) // Désactivé pour l'instant
+                        Button {
+                            saveProfile()
+                        } label: {
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("Enregistrer")
+                            }
+                        }
+                        .disabled(isSaving)
                     }
                 }
             }
@@ -681,6 +797,8 @@ struct EditProfileView: View {
                     fullName = data?.displayName ?? ""
                     username = data?.username ?? ""
                     email = data?.email ?? currentUser.email ?? ""
+                    selectedGender = data?.gender ?? .notSpecified
+                    birthDate = data?.birthDate ?? Date()
                     isLoading = false
                 }
             } catch {
@@ -688,6 +806,45 @@ struct EditProfileView: View {
                 await MainActor.run {
                     email = currentUser.email ?? ""
                     isLoading = false
+                }
+            }
+        }
+    }
+
+    private func saveProfile() {
+        guard let currentUser = Auth.auth().currentUser else {
+            errorMessage = "Utilisateur non connecté"
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+        successMessage = nil
+
+        Task {
+            do {
+                // Mettre à jour le profil dans Firestore
+                let db = Firestore.firestore()
+                try await db.collection("users").document(currentUser.uid).updateData([
+                    "displayName": fullName,
+                    "gender": selectedGender.rawValue,
+                    "birthDate": Timestamp(date: birthDate)
+                ])
+
+                await MainActor.run {
+                    isSaving = false
+                    successMessage = "Profil mis à jour !"
+
+                    // Fermer après 1.5 secondes
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        dismiss()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    errorMessage = "Erreur : \(error.localizedDescription)"
                 }
             }
         }

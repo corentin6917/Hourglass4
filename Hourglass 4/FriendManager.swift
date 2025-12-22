@@ -118,6 +118,7 @@ class FriendManager {
         let gender = Gender(rawValue: genderString) ?? .notSpecified
         let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
         let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
+        let profileImageURL = data["profileImageURL"] as? String
 
         return UserData(
             uid: uid,
@@ -126,7 +127,8 @@ class FriendManager {
             displayName: displayName,
             gender: gender,
             birthDate: birthDateTimestamp.dateValue(),
-            createdAt: createdAtTimestamp.dateValue()
+            createdAt: createdAtTimestamp.dateValue(),
+            profileImageURL: profileImageURL
         )
     }
 
@@ -344,4 +346,3 @@ class FriendManager {
         }
     }
 }
-

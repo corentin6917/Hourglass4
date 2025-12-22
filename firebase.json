@@ -1,5 +1,20 @@
 {
   "dataconnect": {
     "source": "dataconnect"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": [
+    {
+      "bucket": "hourglass4.firebasestorage.app",
+      "rules": "storage.rules"
+    }
+  ],
+  "emulators": {
+    "dataconnect": {
+      "port": 9399
+    }
   }
 }

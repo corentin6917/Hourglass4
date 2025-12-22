@@ -288,7 +288,7 @@ struct ValidateGoalView: View {
                 }
             }
             .sheet(isPresented: $showImagePicker) {
-                ImagePicker(image: $selectedImage)
+                GoalCameraPicker(image: $selectedImage)
             }
         }
     }
@@ -306,7 +306,7 @@ struct ValidateGoalView: View {
 
 // MARK: - Image Picker
 
-struct ImagePicker: UIViewControllerRepresentable {
+struct GoalCameraPicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
     
@@ -325,19 +325,19 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
     
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
+        let parent: GoalCameraPicker
+
+        init(_ parent: GoalCameraPicker) {
             self.parent = parent
         }
-        
+
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
                 parent.image = image
             }
             parent.dismiss()
         }
-        
+
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.dismiss()
         }

@@ -116,7 +116,7 @@ struct VictoryFeedView: View {
                 }
             }
             .sheet(isPresented: $showProfile) {
-                Text("Profil à venir")
+                ProfileView(viewModel: viewModel)
             }
         }
     }
