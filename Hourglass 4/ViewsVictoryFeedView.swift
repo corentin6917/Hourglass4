@@ -90,7 +90,7 @@ struct VictoryFeedView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
 
-                            Text("Les photos sont visibles 48h, puis automatiquement supprimées chaque soir à 22h.")
+                            Text("Le feed se rafraîchit chaque soir à 21h avec les photos de la journée. Validation possible jusqu'à 20h59.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -152,7 +152,7 @@ struct VictoryFeedView: View {
                 .font(.title2)
                 .fontWeight(.bold)
 
-            Text("Les photos de tes amis restent visibles 48h avant d'être supprimées.")
+            Text("Les photos apparaissent à 21h et restent visibles 24h.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

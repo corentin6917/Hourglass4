@@ -23,7 +23,8 @@ struct Victory: Identifiable, Codable {
 
     // Métadonnées
     let createdAt: Date
-    let expiresAt: Date   // createdAt + 24h
+    let visibleAt: Date   // Visible à partir de 20h le jour de création
+    let expiresAt: Date   // Expire à 20h le lendemain
 
     // Interactions sociales
     var boostCount: Int
@@ -53,7 +54,22 @@ struct Victory: Identifiable, Codable {
         self.goalEmoji = goalEmoji
         self.photoURL = photoURL
         self.createdAt = createdAt
-        self.expiresAt = Calendar.current.date(byAdding: .hour, value: 48, to: createdAt) ?? createdAt
+
+        let calendar = Calendar.current
+
+        // Visible à partir de 21h le jour de création
+        var todayComponents = calendar.dateComponents([.year, .month, .day], from: createdAt)
+        todayComponents.hour = 21
+        todayComponents.minute = 0
+        self.visibleAt = calendar.date(from: todayComponents) ?? createdAt
+
+        // Expire le lendemain à 21h (24h de visibilité)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: createdAt) ?? createdAt
+        var tomorrowComponents = calendar.dateComponents([.year, .month, .day], from: tomorrow)
+        tomorrowComponents.hour = 21
+        tomorrowComponents.minute = 0
+        self.expiresAt = calendar.date(from: tomorrowComponents) ?? tomorrow
+
         self.boostCount = boostCount
         self.commentCount = commentCount
         self.boostedBy = boostedBy
@@ -61,6 +77,11 @@ struct Victory: Identifiable, Codable {
 
     var isExpired: Bool {
         return Date() > expiresAt
+    }
+
+    var isVisible: Bool {
+        let now = Date()
+        return now >= visibleAt && now <= expiresAt
     }
 
     var timeAgoString: String {
@@ -88,6 +109,7 @@ struct Victory: Identifiable, Codable {
             "goalEmoji": goalEmoji,
             "photoURL": photoURL,
             "createdAt": Timestamp(date: createdAt),
+            "visibleAt": Timestamp(date: visibleAt),
             "expiresAt": Timestamp(date: expiresAt),
             "boostCount": boostCount,
             "commentCount": commentCount,

@@ -12,14 +12,14 @@ const {getStorage} = require("firebase-admin/storage");
 admin.initializeApp();
 
 /**
- * Fonction schedulée qui s'exécute tous les jours à 22h
- * Supprime les victoires expirées (> 48h) et leurs photos
+ * Fonction schedulée qui s'exécute tous les jours à 21h
+ * Supprime les victoires expirées (24h de visibilité)
  *
- * Photos supprimées entre 48h et 72h après création (selon l'heure de validation)
+ * Le feed se rafraîchit à 21h : les photos de la veille disparaissent
  * Coût estimé: ~$0.004/mois (30 exécutions par mois)
  */
 exports.cleanupExpiredVictories = onSchedule({
-  schedule: "0 22 * * *",  // Tous les jours à 22h (heure de Paris)
+  schedule: "0 21 * * *",  // Tous les jours à 21h (heure de Paris)
   timeZone: "Europe/Paris",
   region: "europe-west1",
 }, async (event) => {

@@ -111,11 +111,13 @@ class VictoryManager: ObservableObject {
             isLoading = true
         }
 
-        // Récupérer les victoires des amis (non expirées)
+        // Récupérer les victoires des amis (non expirées et déjà visibles)
         let now = Date()
         let snapshot = try await db.collection("victories")
             .whereField("userId", in: friendIds.isEmpty ? ["dummy"] : friendIds)
+            .whereField("visibleAt", isLessThanOrEqualTo: Timestamp(date: now))
             .whereField("expiresAt", isGreaterThan: Timestamp(date: now))
+            .order(by: "visibleAt", descending: false)
             .order(by: "expiresAt", descending: false)
             .order(by: "createdAt", descending: true)
             .limit(to: 50)
