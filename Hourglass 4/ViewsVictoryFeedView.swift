@@ -90,7 +90,7 @@ struct VictoryFeedView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
 
-                            Text("Les preuves photo deviennent visibles à partir de 20h et disparaissent après 24h.")
+                            Text("Les photos sont visibles 48h, puis automatiquement supprimées chaque soir à 22h.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -152,7 +152,7 @@ struct VictoryFeedView: View {
                 .font(.title2)
                 .fontWeight(.bold)
 
-            Text("Les photos de tes amis deviennent visibles à partir de 20h et restent 24h.")
+            Text("Les photos de tes amis restent visibles 48h avant d'être supprimées.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -53,7 +53,7 @@ struct Victory: Identifiable, Codable {
         self.goalEmoji = goalEmoji
         self.photoURL = photoURL
         self.createdAt = createdAt
-        self.expiresAt = Calendar.current.date(byAdding: .hour, value: 24, to: createdAt) ?? createdAt
+        self.expiresAt = Calendar.current.date(byAdding: .hour, value: 48, to: createdAt) ?? createdAt
         self.boostCount = boostCount
         self.commentCount = commentCount
         self.boostedBy = boostedBy
