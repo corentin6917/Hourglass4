@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -44,9 +45,11 @@ struct Friendship: Identifiable, Codable {
     let createdAt: Date
 }
 
-class FriendManager {
+class FriendManager: ObservableObject {
     static let shared = FriendManager()
     private let db = Firestore.firestore()
+
+    @Published var friends: [UserData] = []
 
     private init() {}
 
@@ -343,6 +346,51 @@ class FriendManager {
 
         for document in snapshot2.documents {
             try await document.reference.delete()
+        }
+    }
+
+    // MARK: - Charger la liste des amis
+
+    func loadFriends() async {
+        guard let currentUser = Auth.auth().currentUser else { return }
+
+        do {
+            // Récupérer les friendships où l'utilisateur est user1
+            let snapshot1 = try await db.collection("friendships")
+                .whereField("user1Id", isEqualTo: currentUser.uid)
+                .getDocuments()
+
+            // Récupérer les friendships où l'utilisateur est user2
+            let snapshot2 = try await db.collection("friendships")
+                .whereField("user2Id", isEqualTo: currentUser.uid)
+                .getDocuments()
+
+            // Collecter tous les IDs d'amis
+            var friendIds = Set<String>()
+            for doc in snapshot1.documents {
+                if let user2Id = doc.data()["user2Id"] as? String {
+                    friendIds.insert(user2Id)
+                }
+            }
+            for doc in snapshot2.documents {
+                if let user1Id = doc.data()["user1Id"] as? String {
+                    friendIds.insert(user1Id)
+                }
+            }
+
+            // Charger les données des amis
+            var loadedFriends: [UserData] = []
+            for friendId in friendIds {
+                if let friendData = try await UserManager.shared.getUserProfile(uid: friendId) {
+                    loadedFriends.append(friendData)
+                }
+            }
+
+            await MainActor.run {
+                self.friends = loadedFriends
+            }
+        } catch {
+            print("Erreur de chargement des amis: \(error.localizedDescription)")
         }
     }
 }

@@ -81,5 +81,54 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    // Collection goals - Objectifs quotidiens des utilisateurs
+    match /goals/{goalId} {
+      // Lecture: uniquement le propriétaire
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Création: uniquement le propriétaire
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Mise à jour: uniquement le propriétaire
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Suppression: uniquement le propriétaire
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Collection victories - Victoires des utilisateurs (photos avec objectifs)
+    match /victories/{victoryId} {
+      // Lecture: tous les utilisateurs authentifiés peuvent lire les victoires
+      allow read: if isAuthenticated();
+
+      // Création: uniquement le propriétaire peut créer sa propre victoire
+      allow create: if isAuthenticated() &&
+                     request.resource.data.userId == request.auth.uid;
+
+      // Mise à jour: pour booster ou commenter (incrémentation des compteurs)
+      allow update: if isAuthenticated();
+
+      // Suppression: uniquement le propriétaire ou pour nettoyage automatique
+      allow delete: if isAuthenticated() &&
+                     resource.data.userId == request.auth.uid;
+
+      // Sous-collection comments - Commentaires sur les victoires
+      match /comments/{commentId} {
+        // Lecture: tous les utilisateurs authentifiés
+        allow read: if isAuthenticated();
+
+        // Création: utilisateur authentifié peut commenter
+        allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+
+        // Suppression: uniquement l'auteur du commentaire
+        allow delete: if isAuthenticated() &&
+                       resource.data.userId == request.auth.uid;
+
+        // Pas de mise à jour (les commentaires sont immuables)
+        allow update: if false;
+      }
+    }
   }
 }

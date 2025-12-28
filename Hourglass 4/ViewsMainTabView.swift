@@ -16,7 +16,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // Onglet 1: Fil des Victoires
-            VictoryFeedView(viewModel: viewModel)
+            VictoryFeedView()
                 .tabItem {
                     Label("Fil", systemImage: "sparkles")
                 }
@@ -29,8 +29,8 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            // Onglet 3: Objectifs
-            ObjectivesView(viewModel: viewModel)
+            // Onglet 3: Objectifs - Firebase
+            ObjectivesViewFirebase()
                 .tabItem {
                     Label("Objectifs", systemImage: "target")
                 }

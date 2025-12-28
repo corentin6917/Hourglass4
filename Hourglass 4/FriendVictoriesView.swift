@@ -10,7 +10,7 @@ import SwiftUI
 struct FriendVictoriesView: View {
     let friend: UserData
     @Environment(\.dismiss) private var dismiss
-    @State private var victories: [Victory] = []
+    @State private var victories: [FriendVictory] = []
     @State private var isLoading = true
 
     var displayName: String {
@@ -68,7 +68,7 @@ struct FriendVictoriesView: View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 ForEach(victories) { victory in
-                    VictoryCard(victory: victory)
+                    FriendVictoryCard(victory: victory)
                 }
             }
             .padding()
@@ -89,9 +89,9 @@ struct FriendVictoriesView: View {
     }
 }
 
-// MARK: - Victory Model
+// MARK: - Friend Victory Model
 
-struct Victory: Identifiable {
+struct FriendVictory: Identifiable {
     let id: String
     let title: String
     let description: String
@@ -100,10 +100,10 @@ struct Victory: Identifiable {
     let color: Color
 }
 
-// MARK: - Victory Card Component
+// MARK: - Friend Victory Card Component
 
-struct VictoryCard: View {
-    let victory: Victory
+struct FriendVictoryCard: View {
+    let victory: FriendVictory
 
     var body: some View {
         HStack(spacing: 16) {

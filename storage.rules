@@ -26,5 +26,19 @@ service firebase.storage {
                     && request.resource.size < 5 * 1024 * 1024
                     && request.resource.contentType.matches('image/.*');
     }
+
+    // Photos de victoires - dans le dossier victories/{userId}/
+    match /victories/{userId}/{allPaths=**} {
+      // Lecture : tous les utilisateurs authentifiés peuvent voir les photos de victoires
+      allow read: if isAuthenticated();
+
+      // Écriture : seulement le propriétaire peut uploader/modifier/supprimer ses victoires
+      allow write: if isOwner(userId);
+
+      // Limite de taille : max 10MB pour les photos de victoires
+      allow create: if isOwner(userId)
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
   }
 }

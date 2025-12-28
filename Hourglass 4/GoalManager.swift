@@ -1,0 +1,231 @@
+//
+//  GoalManager.swift
+//  Hourglass 4
+//
+//  Manager pour la gestion des objectifs dans Firebase
+//
+
+import Foundation
+import Combine
+import FirebaseAuth
+import FirebaseFirestore
+
+class GoalManager: ObservableObject {
+    static let shared = GoalManager()
+
+    private let db = Firestore.firestore()
+
+    @Published var todayGoals: [FirebaseGoal] = []
+    @Published var isLoading = false
+
+    private init() {}
+
+    // MARK: - Créer un objectif
+
+    func createGoal(
+        title: String,
+        description: String?,
+        category: GoalCategory,
+        baseValue: Double
+    ) async throws -> FirebaseGoal {
+        guard let currentUser = Auth.auth().currentUser else {
+            print("❌ GoalManager: Utilisateur non connecté")
+            throw NSError(domain: "GoalManager", code: 401, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"])
+        }
+
+        print("✅ GoalManager: Utilisateur connecté - UID: \(currentUser.uid)")
+
+        let goal = FirebaseGoal(
+            userId: currentUser.uid,
+            title: title,
+            goalDescription: description,
+            category: category,
+            baseValue: baseValue,
+            grainValue: baseValue,
+            status: .pending,
+            createdAt: Date()
+        )
+
+        print("📝 GoalManager: Création de l'objectif - ID: \(goal.goalId), Titre: \(goal.title)")
+
+        try await db.collection("goals").document(goal.goalId).setData(goal.dictionary)
+
+        print("✅ GoalManager: Objectif sauvegardé dans Firebase")
+
+        // Recharger les objectifs
+        await loadTodayGoals()
+
+        return goal
+    }
+
+    // MARK: - Charger les objectifs du jour
+
+    func loadTodayGoals() async {
+        guard let currentUser = Auth.auth().currentUser else {
+            print("❌ loadTodayGoals: Utilisateur non connecté")
+            return
+        }
+
+        print("🔄 loadTodayGoals: Début du chargement pour UID: \(currentUser.uid)")
+
+        await MainActor.run {
+            isLoading = true
+        }
+
+        do {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+
+            print("📅 loadTodayGoals: Plage de dates - De: \(today) à \(tomorrow)")
+
+            let snapshot = try await db.collection("goals")
+                .whereField("userId", isEqualTo: currentUser.uid)
+                .whereField("createdAt", isGreaterThanOrEqualTo: Timestamp(date: today))
+                .whereField("createdAt", isLessThan: Timestamp(date: tomorrow))
+                .order(by: "createdAt", descending: false)
+                .getDocuments()
+
+            print("📊 loadTodayGoals: \(snapshot.documents.count) documents trouvés")
+
+            let goals = snapshot.documents.compactMap { FirebaseGoal.from(document: $0) }
+
+            print("✅ loadTodayGoals: \(goals.count) objectifs chargés")
+            goals.forEach { goal in
+                print("   - \(goal.title) (ID: \(goal.goalId), Statut: \(goal.status))")
+            }
+
+            await MainActor.run {
+                self.todayGoals = goals
+                self.isLoading = false
+                print("🎯 loadTodayGoals: todayGoals mis à jour avec \(goals.count) objectifs")
+            }
+        } catch {
+            print("❌ Erreur de chargement des objectifs: \(error.localizedDescription)")
+            await MainActor.run {
+                self.isLoading = false
+            }
+        }
+    }
+
+    // MARK: - Valider un objectif
+
+    func validateGoal(_ goal: FirebaseGoal, with imageData: Data) async throws {
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NSError(domain: "GoalManager", code: 401)
+        }
+
+        // Mettre à jour le statut
+        try await db.collection("goals").document(goal.goalId).updateData([
+            "status": GoalStatus.completed.rawValue,
+            "completedAt": Timestamp(date: Date())
+        ])
+
+        // Recharger les objectifs
+        await loadTodayGoals()
+    }
+
+    // MARK: - Supprimer un objectif
+
+    func deleteGoal(_ goal: FirebaseGoal) async throws {
+        try await db.collection("goals").document(goal.goalId).delete()
+
+        // Recharger les objectifs
+        await loadTodayGoals()
+    }
+}
+
+// MARK: - Modèle Firebase pour les objectifs
+
+struct FirebaseGoal: Identifiable, Codable {
+    var id: String { goalId }
+    let goalId: String
+    let userId: String
+    let title: String
+    let goalDescription: String?
+    let category: GoalCategory
+    let baseValue: Double
+    let grainValue: Double
+    let status: GoalStatus
+    let createdAt: Date
+    let completedAt: Date?
+
+    init(
+        goalId: String = UUID().uuidString,
+        userId: String,
+        title: String,
+        goalDescription: String?,
+        category: GoalCategory,
+        baseValue: Double,
+        grainValue: Double,
+        status: GoalStatus,
+        createdAt: Date,
+        completedAt: Date? = nil
+    ) {
+        self.goalId = goalId
+        self.userId = userId
+        self.title = title
+        self.goalDescription = goalDescription
+        self.category = category
+        self.baseValue = baseValue
+        self.grainValue = grainValue
+        self.status = status
+        self.createdAt = createdAt
+        self.completedAt = completedAt
+    }
+
+    var dictionary: [String: Any] {
+        var dict: [String: Any] = [
+            "goalId": goalId,
+            "userId": userId,
+            "title": title,
+            "category": category.rawValue,
+            "baseValue": baseValue,
+            "grainValue": grainValue,
+            "status": status.rawValue,
+            "createdAt": Timestamp(date: createdAt)
+        ]
+
+        if let description = goalDescription {
+            dict["goalDescription"] = description
+        }
+
+        if let completed = completedAt {
+            dict["completedAt"] = Timestamp(date: completed)
+        }
+
+        return dict
+    }
+
+    static func from(document: QueryDocumentSnapshot) -> FirebaseGoal? {
+        let data = document.data()
+
+        guard let goalId = data["goalId"] as? String,
+              let userId = data["userId"] as? String,
+              let title = data["title"] as? String,
+              let categoryRaw = data["category"] as? String,
+              let category = GoalCategory(rawValue: categoryRaw),
+              let baseValue = data["baseValue"] as? Double,
+              let grainValue = data["grainValue"] as? Double,
+              let statusRaw = data["status"] as? String,
+              let status = GoalStatus(rawValue: statusRaw),
+              let createdAtTimestamp = data["createdAt"] as? Timestamp else {
+            return nil
+        }
+
+        let completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
+
+        return FirebaseGoal(
+            goalId: goalId,
+            userId: userId,
+            title: title,
+            goalDescription: data["goalDescription"] as? String,
+            category: category,
+            baseValue: baseValue,
+            grainValue: grainValue,
+            status: status,
+            createdAt: createdAtTimestamp.dateValue(),
+            completedAt: completedAt
+        )
+    }
+}

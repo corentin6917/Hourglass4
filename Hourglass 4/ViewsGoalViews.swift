@@ -106,7 +106,7 @@ struct GoalCardView: View {
 struct CreateGoalView: View {
     let viewModel: HourglassViewModel?
     
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     
     @State private var title = ""
     @State private var description = ""
@@ -298,9 +298,30 @@ struct ValidateGoalView: View {
               let imageData = image.jpegData(compressionQuality: 0.8) else {
             return
         }
-        
-        viewModel?.validateGoal(goal, with: imageData)
-        dismiss()
+
+        // Créer et poster la victoire sur le fil
+        Task {
+            do {
+                _ = try await VictoryManager.shared.createVictory(
+                    goalTitle: goal.title,
+                    goalEmoji: goal.category.emoji,
+                    photoImage: image
+                )
+
+                // Valider l'objectif localement
+                await MainActor.run {
+                    viewModel?.validateGoal(goal, with: imageData)
+                    dismiss()
+                }
+            } catch {
+                print("Erreur lors de la création de la victoire: \(error.localizedDescription)")
+                // Même en cas d'erreur, on valide quand même l'objectif localement
+                await MainActor.run {
+                    viewModel?.validateGoal(goal, with: imageData)
+                    dismiss()
+                }
+            }
+        }
     }
 }
 

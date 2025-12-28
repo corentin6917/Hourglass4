@@ -7,6 +7,26 @@
 
 import SwiftUI
 
+/// Période d'affichage des victoires
+enum VictoryPeriod: String, CaseIterable, Identifiable {
+    case today
+    case thisWeek
+    case thisMonth
+    case thisYear
+    case allTime
+
+    var id: String { rawValue }
+}
+
+/// Audience de visibilité des victoires
+enum VictoryAudience: String, CaseIterable, Identifiable {
+    case friends
+    case `public`
+    case me
+
+    var id: String { rawValue }
+}
+
 /// Barre de filtres pour le Fil des Victoires
 /// - Parameters:
 ///   - audience: Filtre d'audience (amis, public, moi)
