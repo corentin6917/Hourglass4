@@ -2,7 +2,9 @@
 //  ImagePicker.swift
 //  Hourglass 4
 //
-//  Wrapper SwiftUI pour UIImagePickerController (caméra uniquement)
+//  Wrapper SwiftUI pour UIImagePickerController
+//  TEMPORAIRE: Autorise la pellicule pour les tests sur simulateur
+//  TODO: Retirer .photoLibrary avant la version finale
 //
 
 import SwiftUI
@@ -12,11 +14,24 @@ struct ImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Environment(\.dismiss) private var dismiss
 
+    // TEMPORAIRE: Paramètre pour choisir la source (caméra ou pellicule)
+    var sourceType: UIImagePickerController.SourceType = .camera
+
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.cameraCaptureMode = .photo
-        picker.cameraDevice = .rear
+
+        // Sur simulateur, utiliser la pellicule car pas de caméra disponible
+        #if targetEnvironment(simulator)
+        picker.sourceType = .photoLibrary
+        #else
+        // Sur device réel, utiliser la source spécifiée (caméra par défaut)
+        picker.sourceType = sourceType
+        if sourceType == .camera {
+            picker.cameraCaptureMode = .photo
+            picker.cameraDevice = .rear
+        }
+        #endif
+
         picker.delegate = context.coordinator
         return picker
     }
