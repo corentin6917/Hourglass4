@@ -110,15 +110,16 @@ class GoalManager: ObservableObject {
 
     // MARK: - Valider un objectif
 
-    func validateGoal(_ goal: FirebaseGoal, with imageData: Data) async throws {
+    func validateGoal(_ goal: FirebaseGoal, photoURL: String) async throws {
         guard let currentUser = Auth.auth().currentUser else {
             throw NSError(domain: "GoalManager", code: 401)
         }
 
-        // Mettre à jour le statut
+        // Mettre à jour le statut et sauvegarder l'URL de la photo
         try await db.collection("goals").document(goal.goalId).updateData([
             "status": GoalStatus.completed.rawValue,
-            "completedAt": Timestamp(date: Date())
+            "completedAt": Timestamp(date: Date()),
+            "photoURL": photoURL
         ])
 
         // Recharger les objectifs
@@ -149,6 +150,7 @@ struct FirebaseGoal: Identifiable, Codable {
     let status: GoalStatus
     let createdAt: Date
     let completedAt: Date?
+    let photoURL: String?  // URL de la photo de validation
 
     init(
         goalId: String = UUID().uuidString,
@@ -160,7 +162,8 @@ struct FirebaseGoal: Identifiable, Codable {
         grainValue: Double,
         status: GoalStatus,
         createdAt: Date,
-        completedAt: Date? = nil
+        completedAt: Date? = nil,
+        photoURL: String? = nil
     ) {
         self.goalId = goalId
         self.userId = userId
@@ -172,6 +175,7 @@ struct FirebaseGoal: Identifiable, Codable {
         self.status = status
         self.createdAt = createdAt
         self.completedAt = completedAt
+        self.photoURL = photoURL
     }
 
     var dictionary: [String: Any] {
@@ -194,6 +198,10 @@ struct FirebaseGoal: Identifiable, Codable {
             dict["completedAt"] = Timestamp(date: completed)
         }
 
+        if let photoURL = photoURL {
+            dict["photoURL"] = photoURL
+        }
+
         return dict
     }
 
@@ -214,6 +222,7 @@ struct FirebaseGoal: Identifiable, Codable {
         }
 
         let completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
+        let photoURL = data["photoURL"] as? String
 
         return FirebaseGoal(
             goalId: goalId,
@@ -225,7 +234,8 @@ struct FirebaseGoal: Identifiable, Codable {
             grainValue: grainValue,
             status: status,
             createdAt: createdAtTimestamp.dateValue(),
-            completedAt: completedAt
+            completedAt: completedAt,
+            photoURL: photoURL
         )
     }
 }

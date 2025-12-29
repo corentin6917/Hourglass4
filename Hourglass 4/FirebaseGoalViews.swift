@@ -107,6 +107,7 @@ struct FirebaseGoalCard: View {
     let goal: FirebaseGoal
 
     @State private var showValidation = false
+    @State private var showPhoto = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -177,6 +178,29 @@ struct FirebaseGoalCard: View {
                     Spacer()
                 }
                 .padding(.vertical, 8)
+
+                // Bouton pour voir la photo
+                if goal.photoURL != nil {
+                    Button {
+                        showPhoto = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "photo")
+                                .font(.subheadline)
+
+                            Text("Voir la photo")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.blue.opacity(0.1))
+                        }
+                    }
+                }
             }
         }
         .padding()
@@ -187,6 +211,58 @@ struct FirebaseGoalCard: View {
         }
         .sheet(isPresented: $showValidation) {
             FirebaseValidateGoalView(goal: goal)
+        }
+        .sheet(isPresented: $showPhoto) {
+            if let photoURL = goal.photoURL {
+                GoalPhotoView(photoURL: photoURL, goalTitle: goal.title)
+            }
+        }
+    }
+}
+
+// MARK: - View Photo Sheet
+
+struct GoalPhotoView: View {
+    let photoURL: String
+    let goalTitle: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                AsyncImage(url: URL(string: photoURL)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    case .failure:
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 60))
+                                .foregroundStyle(.secondary)
+                            Text("Impossible de charger la photo")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            .navigationTitle(goalTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -313,8 +389,7 @@ struct FirebaseValidateGoalView: View {
     }
 
     private func validateGoal() async {
-        guard let image = selectedImage,
-              let imageData = image.jpegData(compressionQuality: 0.8) else {
+        guard let image = selectedImage else {
             return
         }
 
@@ -322,14 +397,14 @@ struct FirebaseValidateGoalView: View {
 
         do {
             // 1. Créer et poster la victoire sur le fil
-            _ = try await VictoryManager.shared.createVictory(
+            let victory = try await VictoryManager.shared.createVictory(
                 goalTitle: goal.title,
                 goalEmoji: goal.category.emoji,
                 photoImage: image
             )
 
-            // 2. Valider l'objectif dans Firebase
-            try await goalManager.validateGoal(goal, with: imageData)
+            // 2. Valider l'objectif dans Firebase avec l'URL de la photo
+            try await goalManager.validateGoal(goal, photoURL: victory.photoURL)
 
             await MainActor.run {
                 dismiss()

@@ -18,10 +18,12 @@ struct ObjectivesViewFirebase: View {
     }
 
     var potentialAllocated: Double {
-        todayGoals.reduce(0) { $0 + $1.grainValue }
+        // Seulement les objectifs validés comptent dans le potentiel alloué
+        completedGoals.reduce(0) { $0 + $1.grainValue }
     }
 
     var potentialRemaining: Double {
+        // Le potentiel restant = 10 grains - grains gagnés (pas les grains "promis")
         10.0 - potentialAllocated
     }
 
