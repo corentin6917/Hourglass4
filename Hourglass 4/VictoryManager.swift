@@ -111,8 +111,13 @@ class VictoryManager: ObservableObject {
             isLoading = true
         }
 
+        print("🔍 VictoryManager - Chargement des victoires...")
+        print("🔍 VictoryManager - friendIds: \(friendIds)")
+
         // Récupérer les victoires des amis (non expirées et déjà visibles)
         let now = Date()
+        print("🔍 VictoryManager - Date actuelle: \(now)")
+
         let snapshot = try await db.collection("victories")
             .whereField("userId", in: friendIds.isEmpty ? ["dummy"] : friendIds)
             .whereField("visibleAt", isLessThanOrEqualTo: Timestamp(date: now))
@@ -123,7 +128,11 @@ class VictoryManager: ObservableObject {
             .limit(to: 50)
             .getDocuments()
 
+        print("🔍 VictoryManager - Documents trouvés: \(snapshot.documents.count)")
+
         let loadedVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
+
+        print("🔍 VictoryManager - Victoires parsées: \(loadedVictories.count)")
 
         await MainActor.run {
             self.victories = loadedVictories

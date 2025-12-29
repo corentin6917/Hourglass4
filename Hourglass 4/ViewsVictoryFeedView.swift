@@ -169,10 +169,19 @@ struct VictoryFeedView: View {
             // Récupérer les IDs des amis
             let friendIds = friendManager.friends.map { $0.id }
 
+            print("🔍 DEBUG - Nombre d'amis: \(friendIds.count)")
+            print("🔍 DEBUG - IDs des amis: \(friendIds)")
+
             // Charger le fil des victoires (même si pas d'amis, on charge quand même pour mettre à jour isLoading)
             try await victoryManager.loadVictoryFeed(friendIds: friendIds)
+
+            print("🔍 DEBUG - Victoires chargées: \(victoryManager.victories.count)")
+            victoryManager.victories.forEach { victory in
+                print("   - \(victory.goalEmoji) \(victory.goalTitle) par @\(victory.username)")
+                print("     Visible: \(victory.isVisible), Créé: \(victory.createdAt)")
+            }
         } catch {
-            print("Erreur de chargement du fil: \(error.localizedDescription)")
+            print("❌ Erreur de chargement du fil: \(error.localizedDescription)")
             // Assurer que isLoading est désactivé même en cas d'erreur
             await MainActor.run {
                 victoryManager.isLoading = false
