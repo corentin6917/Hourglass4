@@ -113,26 +113,46 @@ class VictoryManager: ObservableObject {
 
         print("🔍 VictoryManager - Chargement des victoires...")
         print("🔍 VictoryManager - friendIds: \(friendIds)")
+        print("🔍 VictoryManager - friendIds.count: \(friendIds.count)")
 
-        // Récupérer les victoires des amis (non expirées et déjà visibles)
+        // Récupérer les victoires des amis (MODE TEST - toutes les victoires visibles)
         let now = Date()
         print("🔍 VictoryManager - Date actuelle: \(now)")
+        print("⚠️ MODE TEST: Restriction 21h désactivée - toutes les victoires sont visibles")
+
+        // Si pas d'amis, on ne peut pas utiliser la query "in" avec un tableau vide
+        if friendIds.isEmpty {
+            print("⚠️ VictoryManager - Aucun ami trouvé, impossible de charger les victoires")
+            await MainActor.run {
+                self.victories = []
+                self.isLoading = false
+            }
+            return
+        }
 
         let snapshot = try await db.collection("victories")
-            .whereField("userId", in: friendIds.isEmpty ? ["dummy"] : friendIds)
-            .whereField("visibleAt", isLessThanOrEqualTo: Timestamp(date: now))
-            .whereField("expiresAt", isGreaterThan: Timestamp(date: now))
-            .order(by: "visibleAt", descending: false)
-            .order(by: "expiresAt", descending: false)
+            .whereField("userId", in: friendIds)
+            // TEMPORAIRE: Commenté pour test - normalement actif en production
+            // .whereField("visibleAt", isLessThanOrEqualTo: Timestamp(date: now))
+            // .whereField("expiresAt", isGreaterThan: Timestamp(date: now))
             .order(by: "createdAt", descending: true)
             .limit(to: 50)
             .getDocuments()
 
-        print("🔍 VictoryManager - Documents trouvés: \(snapshot.documents.count)")
+        print("🔍 VictoryManager - Documents trouvés dans Firestore: \(snapshot.documents.count)")
+
+        // Afficher les données brutes de chaque document
+        snapshot.documents.forEach { doc in
+            print("   - Document ID: \(doc.documentID)")
+            let data = doc.data()
+            print("     userId: \(data["userId"] ?? "N/A")")
+            print("     username: \(data["username"] ?? "N/A")")
+            print("     goalTitle: \(data["goalTitle"] ?? "N/A")")
+        }
 
         let loadedVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
 
-        print("🔍 VictoryManager - Victoires parsées: \(loadedVictories.count)")
+        print("🔍 VictoryManager - Victoires parsées avec succès: \(loadedVictories.count)")
 
         await MainActor.run {
             self.victories = loadedVictories

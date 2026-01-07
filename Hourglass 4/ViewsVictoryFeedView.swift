@@ -20,47 +20,37 @@ struct VictoryFeedView: View {
     @State private var selectedVictory: Victory?
     @State private var showComments = false
     @State private var selectedFilter: VictoryFilter = .friends
+    @State private var showInfo = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 16) {
-                    HStack {
-                        Image(systemName: "hourglass")
-                            .font(.title2)
-                            .foregroundStyle(.orange)
-
-                        Text("HOURGLASS")
-                            .font(.headline)
-                            .fontWeight(.bold)
-
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top)
-
-                    // Titre avec icône
+                // Header minimaliste
+                VStack(spacing: 12) {
+                    // Titre avec bouton info
                     HStack(spacing: 8) {
                         Image(systemName: "sparkles")
-                            .font(.title2)
+                            .font(.title3)
                             .foregroundStyle(.orange)
 
                         Text("Fil des Victoires")
-                            .font(.title)
-                            .fontWeight(.bold)
+                            .font(.title2)
+                            .fontWeight(.semibold)
 
                         Spacer()
+
+                        Button {
+                            showInfo = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.title3)
+                                .foregroundStyle(.orange)
+                        }
                     }
                     .padding(.horizontal)
+                    .padding(.top, 12)
 
-                    Text("Les accomplissements de la communauté")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-
-                    // Filtres
+                    // Filtres compacts
                     HStack(spacing: 12) {
                         FilterButton(
                             icon: "person.2.fill",
@@ -79,30 +69,7 @@ struct VictoryFeedView: View {
                         }
                     }
                     .padding(.horizontal)
-
-                    // Message d'info
-                    HStack(spacing: 12) {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.orange)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Photos éphémères !")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-
-                            Text("Le feed se rafraîchit chaque soir à 21h avec les photos de la journée. Validation possible jusqu'à 20h59.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding()
-                    .background {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.orange.opacity(0.1))
-                    }
-                    .padding(.horizontal)
+                    .padding(.bottom, 8)
                 }
 
                 Divider()
@@ -118,13 +85,19 @@ struct VictoryFeedView: View {
                     } else {
                         LazyVStack(spacing: 16) {
                             ForEach(victoryManager.victories) { victory in
-                                VictoryCard(victory: victory) {
-                                    selectedVictory = victory
-                                    showComments = true
+                                HStack {
+                                    Spacer(minLength: 0)
+                                    VictoryCard(victory: victory) {
+                                        selectedVictory = victory
+                                        showComments = true
+                                    }
+                                    .frame(maxWidth: 500)
+                                    Spacer(minLength: 0)
                                 }
                             }
                         }
-                        .padding()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
                 }
             }
@@ -138,6 +111,11 @@ struct VictoryFeedView: View {
             }
             .sheet(item: $selectedVictory) { victory in
                 VictoryDetailView(victory: victory)
+            }
+            .alert("Photos éphémères", isPresented: $showInfo) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Le feed se rafraîchit chaque soir à 21h avec les photos de la journée. Validation possible jusqu'à 20h59.")
             }
         }
     }
@@ -163,6 +141,13 @@ struct VictoryFeedView: View {
 
     private func loadFeed() async {
         do {
+            guard let currentUserId = Auth.auth().currentUser?.uid else {
+                print("❌ DEBUG - Aucun utilisateur connecté")
+                return
+            }
+
+            print("🔍 DEBUG - Utilisateur actuel: \(currentUserId)")
+
             // Charger la liste des amis
             await friendManager.loadFriends()
 
@@ -172,12 +157,18 @@ struct VictoryFeedView: View {
             print("🔍 DEBUG - Nombre d'amis: \(friendIds.count)")
             print("🔍 DEBUG - IDs des amis: \(friendIds)")
 
+            // Afficher les usernames des amis aussi
+            friendManager.friends.forEach { friend in
+                print("   - Ami: @\(friend.username) (ID: \(friend.id))")
+            }
+
             // Charger le fil des victoires (même si pas d'amis, on charge quand même pour mettre à jour isLoading)
             try await victoryManager.loadVictoryFeed(friendIds: friendIds)
 
             print("🔍 DEBUG - Victoires chargées: \(victoryManager.victories.count)")
             victoryManager.victories.forEach { victory in
                 print("   - \(victory.goalEmoji) \(victory.goalTitle) par @\(victory.username)")
+                print("     UserId: \(victory.userId)")
                 print("     Visible: \(victory.isVisible), Créé: \(victory.createdAt)")
             }
         } catch {
@@ -251,9 +242,8 @@ struct VictoryCard: View {
                 case .success(let image):
                     image
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 300)
-                        .clipped()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 400)
                         .cornerRadius(12)
 
                 case .failure:
@@ -474,20 +464,20 @@ struct FilterButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.subheadline)
+                    .font(.caption)
 
                 Text(title)
-                    .font(.subheadline)
+                    .font(.caption)
                     .fontWeight(.medium)
             }
             .foregroundStyle(isSelected ? .white : .primary)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
             .background {
-                RoundedRectangle(cornerRadius: 25)
+                RoundedRectangle(cornerRadius: 20)
                     .fill(isSelected ? Color.orange : Color.gray.opacity(0.15))
             }
         }
