@@ -1,0 +1,405 @@
+//
+//  ViewsVictoryFeedViewModern.swift
+//  Hourglass 4
+//
+//  Fil des victoires moderne - BeReal-inspired (photo-first, minimal)
+//  Created on 2026-01-07
+//
+
+import SwiftUI
+import FirebaseAuth
+
+/// Fil des victoires - Design minimaliste inspiré de BeReal
+struct VictoryFeedViewModern: View {
+    @StateObject private var victoryManager = VictoryManager.shared
+    @StateObject private var friendManager = FriendManager.shared
+
+    @State private var selectedVictory: Victory?
+    @State private var showCreateVictory = false
+    @State private var selectedFilter: VictoryFilter = .friends
+
+    // MARK: - Filtered Victories
+    private var filteredVictories: [Victory] {
+        let allVictories = victoryManager.friendVictories
+
+        switch selectedFilter {
+        case .friends:
+            // Victoires des amis uniquement
+            let friendIds = friendManager.friends.map { $0.id }
+            return allVictories.filter { friendIds.contains($0.userId) }
+
+        case .thisWeek:
+            // Victoires de cette semaine
+            let calendar = Calendar.current
+            let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+            return allVictories.filter { $0.timestamp >= weekAgo }
+        }
+    }
+
+    // MARK: - Body
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        // Header minimal
+                        headerView
+                            .padding(.horizontal, Theme.Spacing.medium)
+                            .padding(.top, Theme.Spacing.small)
+                            .padding(.bottom, Theme.Spacing.large)
+
+                        // Filters
+                        filterBar
+                            .padding(.horizontal, Theme.Spacing.medium)
+                            .padding(.bottom, Theme.Spacing.medium)
+
+                        // Victory feed - Style BeReal avec photos en plein écran
+                        if filteredVictories.isEmpty {
+                            emptyStateView
+                                .padding(.top, Theme.Spacing.xxxLarge)
+                        } else {
+                            ForEach(filteredVictories) { victory in
+                                VictoryCardModern(victory: victory)
+                                    .padding(.horizontal, Theme.Spacing.medium)
+                                    .padding(.bottom, Theme.Spacing.medium)
+                                    .onTapGesture {
+                                        selectedVictory = victory
+                                    }
+                            }
+                        }
+
+                        Spacer(minLength: 100) // Space for FAB
+                    }
+                }
+                .background(Theme.Colors.background)
+                .refreshable {
+                    await refreshFeed()
+                }
+
+                // Floating Action Button (FAB) - Style BeReal
+                createVictoryButton
+                    .padding(Theme.Spacing.medium)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showCreateVictory) {
+                CreateVictoryView()
+            }
+            .sheet(item: $selectedVictory) { victory in
+                VictoryDetailView(victory: victory)
+            }
+            .onAppear {
+                Task {
+                    await loadFeed()
+                }
+            }
+        }
+    }
+
+    // MARK: - Header
+    private var headerView: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
+            Text("Victoires")
+                .font(Theme.Typography.displaySmall)
+                .foregroundColor(Theme.Colors.textPrimary)
+
+            Text("Les accomplissements de tes complices")
+                .font(Theme.Typography.bodyMedium)
+                .foregroundColor(Theme.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Filter Bar (Minimal Pills)
+    private var filterBar: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            FilterPillModern(
+                title: "Mes complices",
+                icon: "person.2.fill",
+                isSelected: selectedFilter == .friends
+            ) {
+                withAnimation(Theme.Animation.fast) {
+                    selectedFilter = .friends
+                }
+            }
+
+            FilterPillModern(
+                title: "Cette semaine",
+                icon: "calendar",
+                isSelected: selectedFilter == .thisWeek
+            ) {
+                withAnimation(Theme.Animation.fast) {
+                    selectedFilter = .thisWeek
+                }
+            }
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Empty State
+    private var emptyStateView: some View {
+        VStack(spacing: Theme.Spacing.large) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 60))
+                .foregroundColor(Theme.Colors.textTertiary)
+
+            VStack(spacing: Theme.Spacing.xSmall) {
+                Text("Aucune victoire")
+                    .font(Theme.Typography.titleLarge)
+                    .foregroundColor(Theme.Colors.textPrimary)
+
+                Text("Sois le premier à partager tes accomplissements")
+                    .font(Theme.Typography.bodyMedium)
+                    .foregroundColor(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            ThemedButton("Créer une victoire", icon: "plus", style: .primary) {
+                showCreateVictory = true
+            }
+            .padding(.horizontal, Theme.Spacing.xxxLarge)
+        }
+        .padding(Theme.Spacing.large)
+    }
+
+    // MARK: - Create Victory Button (FAB)
+    private var createVictoryButton: some View {
+        Button {
+            showCreateVictory = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 60, height: 60)
+                .background(Theme.Colors.accent)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 4)
+        }
+    }
+
+    // MARK: - Actions
+    private func loadFeed() async {
+        await victoryManager.fetchFriendVictories()
+        await friendManager.fetchFriends()
+    }
+
+    private func refreshFeed() async {
+        await loadFeed()
+    }
+}
+
+// MARK: - Victory Card Modern (BeReal-style)
+struct VictoryCardModern: View {
+    let victory: Victory
+    @StateObject private var userManager = UserManager.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // User info header
+            HStack(spacing: Theme.Spacing.small) {
+                ThemedAvatar(
+                    imageURL: userManager.cachedUsers[victory.userId]?.profileImageURL,
+                    size: 32,
+                    fallbackText: userManager.cachedUsers[victory.userId]?.username
+                )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(userManager.cachedUsers[victory.userId]?.username ?? "Utilisateur")
+                        .font(Theme.Typography.labelLarge)
+                        .foregroundColor(Theme.Colors.textPrimary)
+
+                    Text(victory.timestamp.relativeTimeString())
+                        .font(Theme.Typography.captionSmall)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                // Grains badge
+                HStack(spacing: 4) {
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 6))
+                        .foregroundColor(Theme.Colors.accent)
+
+                    Text("\(victory.grainsEarned)")
+                        .font(Theme.Typography.labelSmall)
+                        .foregroundColor(Theme.Colors.accent)
+                }
+            }
+            .padding(Theme.Spacing.medium)
+
+            // Photo (full-width like BeReal)
+            if let photoURL = victory.photoURL {
+                AsyncImage(url: URL(string: photoURL)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 400)
+                            .clipped()
+                    case .failure, .empty:
+                        photoPlaceholder
+                    @unknown default:
+                        photoPlaceholder
+                    }
+                }
+            } else {
+                photoPlaceholder
+            }
+
+            // Content
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                Text(victory.title)
+                    .font(Theme.Typography.titleMedium)
+                    .foregroundColor(Theme.Colors.textPrimary)
+
+                if let notes = victory.notes, !notes.isEmpty {
+                    Text(notes)
+                        .font(Theme.Typography.bodyMedium)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                        .lineLimit(3)
+                }
+            }
+            .padding(Theme.Spacing.medium)
+        }
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+        )
+        .onAppear {
+            Task {
+                await userManager.fetchUserProfile(userId: victory.userId)
+            }
+        }
+    }
+
+    private var photoPlaceholder: some View {
+        Rectangle()
+            .fill(Theme.Colors.surface)
+            .frame(height: 400)
+            .overlay(
+                Image(systemName: "photo")
+                    .font(.system(size: 50))
+                    .foregroundColor(Theme.Colors.textTertiary)
+            )
+    }
+}
+
+// MARK: - Filter Pill Modern
+struct FilterPillModern: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.xxSmall) {
+                Image(systemName: icon)
+                    .font(.system(size: Theme.IconSize.small))
+
+                Text(title)
+                    .font(Theme.Typography.labelMedium)
+            }
+            .padding(.horizontal, Theme.Spacing.medium)
+            .padding(.vertical, Theme.Spacing.small)
+            .background(isSelected ? Theme.Colors.accent : Theme.Colors.surface)
+            .foregroundColor(isSelected ? .white : Theme.Colors.textSecondary)
+            .cornerRadius(Theme.CornerRadius.full)
+            .overlay(
+                Capsule()
+                    .stroke(
+                        isSelected ? Color.clear : Theme.Colors.border,
+                        lineWidth: Theme.BorderWidth.thin
+                    )
+            )
+        }
+    }
+}
+
+// MARK: - Victory Detail View
+struct VictoryDetailView: View {
+    let victory: Victory
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Theme.Spacing.large) {
+                    // Full photo
+                    if let photoURL = victory.photoURL {
+                        AsyncImage(url: URL(string: photoURL)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                            case .failure, .empty:
+                                Rectangle()
+                                    .fill(Theme.Colors.surface)
+                                    .aspectRatio(1, contentMode: .fit)
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+                        Text(victory.title)
+                            .font(Theme.Typography.headlineLarge)
+                            .foregroundColor(Theme.Colors.textPrimary)
+
+                        if let notes = victory.notes {
+                            Text(notes)
+                                .font(Theme.Typography.bodyLarge)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                        }
+
+                        HStack {
+                            Label("\(victory.grainsEarned) grains", systemImage: "circle.fill")
+                                .font(Theme.Typography.labelMedium)
+                                .foregroundColor(Theme.Colors.accent)
+
+                            Spacer()
+
+                            Text(victory.timestamp.formatted())
+                                .font(Theme.Typography.bodySmall)
+                                .foregroundColor(Theme.Colors.textTertiary)
+                        }
+                    }
+                    .padding(Theme.Spacing.medium)
+                }
+            }
+            .background(Theme.Colors.background)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: Theme.IconSize.medium))
+                            .foregroundColor(Theme.Colors.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Date Extension
+extension Date {
+    func relativeTimeString() -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: self, relativeTo: Date())
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    VictoryFeedViewModern()
+}

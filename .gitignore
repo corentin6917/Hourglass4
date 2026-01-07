@@ -65,3 +65,4 @@ iOSInjectionProject/
 # Firebase
 GoogleService-Info.plist
 functions/node_modules/
+generated/swift/Default/leveldb/
