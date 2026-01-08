@@ -135,22 +135,36 @@ class GoalManager: ObservableObject {
         await loadTodayGoals()
     }
 
-    // MARK: - Charger l'historique des 7 derniers jours
+    // MARK: - Charger l'historique de la semaine en cours
 
-    func loadHistoricalData(days: Int = 7) async -> [(date: Date, earned: Double, potential: Double)] {
+    func loadCurrentWeekData() async -> [(date: Date, earned: Double, potential: Double)] {
         guard let currentUser = Auth.auth().currentUser else {
-            print("❌ loadHistoricalData: Utilisateur non connecté")
+            print("❌ loadCurrentWeekData: Utilisateur non connecté")
             return []
         }
 
-        print("🔄 loadHistoricalData: Chargement de l'historique pour \(days) jours")
+        print("🔄 loadCurrentWeekData: Chargement de l'historique de la semaine en cours")
 
         let calendar = Calendar.current
         var historicalData: [(date: Date, earned: Double, potential: Double)] = []
 
+        // Trouver le lundi de cette semaine
+        let today = Date()
+        var weekday = calendar.component(.weekday, from: today)
+        // Convertir dimanche (1) en 7, et ajuster pour que lundi soit 1
+        weekday = weekday == 1 ? 7 : weekday - 1
+
+        let daysFromMonday = weekday - 1
+        guard let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: calendar.startOfDay(for: today)) else {
+            return []
+        }
+
+        print("📅 Lundi de cette semaine: \(monday.formatted(date: .abbreviated, time: .omitted))")
+
         do {
-            for daysAgo in (0..<days).reversed() {
-                let date = calendar.date(byAdding: .day, value: -daysAgo, to: Date())!
+            // Charger les données du lundi au dimanche (7 jours)
+            for dayOffset in 0..<7 {
+                guard let date = calendar.date(byAdding: .day, value: dayOffset, to: monday) else { continue }
                 let startOfDay = calendar.startOfDay(for: date)
                 let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
 

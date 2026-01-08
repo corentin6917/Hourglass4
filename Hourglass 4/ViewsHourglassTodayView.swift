@@ -251,7 +251,9 @@ struct HourglassTodayView: View {
                                 HStack(spacing: 16) {
                                     ForEach(Array(historicalData.enumerated()), id: \.offset) { index, dayData in
                                         let calendar = Calendar.current
-                                        let dayString = "\(calendar.component(.day, from: dayData.date))"
+                                        let weekdaySymbols = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
+                                        let weekday = calendar.component(.weekday, from: dayData.date)
+                                        let dayString = weekdaySymbols[weekday - 1]
                                         let ratio = dayData.potential > 0 ? (dayData.earned / dayData.potential) : 0.0
                                         let isToday = calendar.isDateInToday(dayData.date)
 
@@ -280,12 +282,12 @@ struct HourglassTodayView: View {
                 animateProgress = true
                 Task {
                     await goalManager.loadTodayGoals()
-                    historicalData = await goalManager.loadHistoricalData(days: 7)
+                    historicalData = await goalManager.loadCurrentWeekData()
                 }
             }
             .refreshable {
                 await goalManager.loadTodayGoals()
-                historicalData = await goalManager.loadHistoricalData(days: 7)
+                historicalData = await goalManager.loadCurrentWeekData()
             }
         }
     }
