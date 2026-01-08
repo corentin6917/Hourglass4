@@ -88,17 +88,31 @@ struct Victory: Identifiable, Codable {
     }
 
     var timeAgoString: String {
-        let interval = Date().timeIntervalSince(createdAt)
-        let hours = Int(interval / 3600)
-        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+        let calendar = Calendar.current
+        let now = Date()
 
-        if hours > 0 {
-            return "Il y a \(hours)h"
-        } else if minutes > 0 {
-            return "Il y a \(minutes) min"
-        } else {
-            return "À l'instant"
+        // Formatter pour l'heure
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let timeString = timeFormatter.string(from: createdAt)
+
+        // Vérifier si c'est aujourd'hui
+        if calendar.isDateInToday(createdAt) {
+            return "Aujourd'hui à \(timeString)"
         }
+
+        // Vérifier si c'était hier
+        if calendar.isDateInYesterday(createdAt) {
+            return "Hier à \(timeString)"
+        }
+
+        // Pour les dates plus anciennes, afficher la date complète
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "d MMM"
+        dateFormatter.locale = Locale(identifier: "fr_FR")
+        let dateString = dateFormatter.string(from: createdAt)
+
+        return "\(dateString) à \(timeString)"
     }
 
     var dictionary: [String: Any] {
@@ -162,17 +176,31 @@ struct VictoryComment: Identifiable, Codable {
     let createdAt: Date
 
     var timeAgoString: String {
-        let interval = Date().timeIntervalSince(createdAt)
-        let hours = Int(interval / 3600)
-        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+        let calendar = Calendar.current
+        let now = Date()
 
-        if hours > 0 {
-            return "Il y a \(hours)h"
-        } else if minutes > 0 {
-            return "Il y a \(minutes) min"
-        } else {
-            return "À l'instant"
+        // Formatter pour l'heure
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let timeString = timeFormatter.string(from: createdAt)
+
+        // Vérifier si c'est aujourd'hui
+        if calendar.isDateInToday(createdAt) {
+            return "Aujourd'hui à \(timeString)"
         }
+
+        // Vérifier si c'était hier
+        if calendar.isDateInYesterday(createdAt) {
+            return "Hier à \(timeString)"
+        }
+
+        // Pour les dates plus anciennes, afficher la date complète
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "d MMM"
+        dateFormatter.locale = Locale(identifier: "fr_FR")
+        let dateString = dateFormatter.string(from: createdAt)
+
+        return "\(dateString) à \(timeString)"
     }
 
     var dictionary: [String: Any] {

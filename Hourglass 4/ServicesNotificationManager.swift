@@ -13,6 +13,18 @@ final class NotificationManager {
     static let shared = NotificationManager()
     
     private init() {}
+
+    private var notificationsEnabled: Bool {
+        UserDefaults.standard.object(forKey: "settings.notificationsEnabled") as? Bool ?? true
+    }
+
+    private var soundsEnabled: Bool {
+        UserDefaults.standard.object(forKey: "settings.soundsEnabled") as? Bool ?? true
+    }
+
+    private var calmModeEnabled: Bool {
+        UserDefaults.standard.object(forKey: "settings.calmModeEnabled") as? Bool ?? false
+    }
     
     // MARK: - Authorization
     
@@ -34,19 +46,26 @@ final class NotificationManager {
         
         // Annuler les notifications existantes
         center.removeAllPendingNotificationRequests()
+
+        guard notificationsEnabled else {
+            center.removeAllDeliveredNotifications()
+            return
+        }
         
         // Notification du matin (8h)
         try await scheduleMorningNotification()
         
         // Notification du soir (20h)
-        try await scheduleEveningNotification()
+        if !calmModeEnabled {
+            try await scheduleEveningNotification()
+        }
     }
     
     private func scheduleMorningNotification() async throws {
         let content = UNMutableNotificationContent()
         content.title = "Grains Disponibles ⏳"
         content.body = "Tes 10 grains t'attendent. Quels sont tes objectifs aujourd'hui ?"
-        content.sound = .default
+        content.sound = soundsEnabled ? .default : nil
         content.badge = 1
 
         // Déclencher à 8h tous les jours
@@ -68,7 +87,7 @@ final class NotificationManager {
         let content = UNMutableNotificationContent()
         content.title = "Le Fil s'est rafraîchi ✨"
         content.body = "Tes amis ont partagé leurs accomplissements. Va les voir !"
-        content.sound = .default
+        content.sound = soundsEnabled ? .default : nil
         content.badge = 1
 
         // Déclencher à 21h tous les jours
@@ -89,10 +108,12 @@ final class NotificationManager {
     // MARK: - Special Notifications
     
     func sendStreakNotification(days: Int) async throws {
+        guard notificationsEnabled else { return }
+
         let content = UNMutableNotificationContent()
         content.title = "🔥 Streak de \(days) jours !"
         content.body = "Continue comme ça, tu es sur une belle lancée."
-        content.sound = .default
+        content.sound = soundsEnabled ? .default : nil
         
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
@@ -105,10 +126,12 @@ final class NotificationManager {
     }
     
     func sendPhoenixModeNotification() async throws {
+        guard notificationsEnabled else { return }
+
         let content = UNMutableNotificationContent()
         content.title = "🔥 Mode Phénix Activé"
         content.body = "Tu es en reconstruction. Chaque petit pas compte triple maintenant."
-        content.sound = .default
+        content.sound = soundsEnabled ? .default : nil
         
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
@@ -121,10 +144,12 @@ final class NotificationManager {
     }
     
     func sendTimeCapsuleNotification(dayCount: Int) async throws {
+        guard notificationsEnabled else { return }
+
         let content = UNMutableNotificationContent()
         content.title = "📦 Nouvelle Capsule Temporelle"
         content.body = "Ta capsule du jour \(dayCount) est prête à être découverte."
-        content.sound = .default
+        content.sound = soundsEnabled ? .default : nil
         
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(

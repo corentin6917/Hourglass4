@@ -19,62 +19,223 @@ struct FirebaseCreateGoalView: View {
     @State private var title = ""
     @State private var description = ""
     @State private var selectedCategory: GoalCategory = .personal
-    @State private var estimatedGrains = 2.0
+    @State private var estimatedGrains = 3.0
     @State private var isCreating = false
+
+    // Exemples suggérés par catégorie
+    var categoryExamples: [String] {
+        switch selectedCategory {
+        case .physical:
+            return ["Courir 30min", "Yoga 45min", "Nager 1km"]
+        case .social:
+            return ["Appeler un ami", "Voir famille", "Sortir"]
+        case .creative:
+            return ["Dessiner", "Écrire", "Créer"]
+        case .professional:
+            return ["Lire 30min", "Coder 1h", "Projet"]
+        case .learning:
+            return ["Apprendre", "Étudier", "Former"]
+        case .personal:
+            return ["Méditer 10min", "Ranger bureau", "Réfléchir"]
+        case .household:
+            return ["Cuisiner", "Nettoyer", "Ranger"]
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Objectif") {
-                    TextField("Ex: Courir 30 min", text: $title)
+            ZStack {
+                // Background blanc
+                Color.white
+                    .ignoresSafeArea()
 
-                    TextField("Description (optionnel)", text: $description, axis: .vertical)
-                        .lineLimit(3...5)
-                }
+                VStack(spacing: 0) {
+                    // Header simple avec +
+                    HStack(spacing: 8) {
+                        Text("+")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.orange)
 
-                Section("Catégorie") {
-                    Picker("Catégorie", selection: $selectedCategory) {
-                        ForEach(GoalCategory.allCases, id: \.self) { category in
-                            Text("\(category.emoji) \(category.displayName)")
-                                .tag(category)
-                        }
+                        Text("Nouvel Objectif (0/3)")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.black)
+
+                        Spacer()
                     }
-                }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 24)
+                    .background(Color.white)
 
-                Section("Valeur estimée") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(String(format: "%.1f grains", estimatedGrains))
-                                .font(.headline)
-                                .foregroundStyle(.orange)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            // Question principale
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Que veux-tu accomplir aujourd'hui ?")
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundStyle(.black)
 
-                            Spacer()
+                                TextField("Ex: Courir 30 minutes", text: $title)
+                                    .font(.system(size: 16))
+                                    .padding(16)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .fill(Color.white)
+                                            )
+                                    )
+                            }
+
+                            // Catégorie dropdown simple
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Catégorie")
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundStyle(.black)
+
+                                Menu {
+                                    ForEach(GoalCategory.allCases, id: \.self) { category in
+                                        Button {
+                                            selectedCategory = category
+                                        } label: {
+                                            HStack {
+                                                Text(category.emoji)
+                                                Text(category.displayName)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Text(selectedCategory.emoji)
+                                            .font(.system(size: 18))
+                                        Text(selectedCategory.displayName)
+                                            .font(.system(size: 16))
+                                            .foregroundStyle(.black)
+                                        Spacer()
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.gray)
+                                    }
+                                    .padding(16)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .fill(Color.white)
+                                            )
+                                    )
+                                }
+                            }
+
+                            // Card Valeur suggérée (fond beige)
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    Text("Valeur suggérée")
+                                        .font(.system(size: 14, weight: .regular))
+                                        .foregroundStyle(.black.opacity(0.7))
+
+                                    Spacer()
+
+                                    Button("Personnaliser") {
+                                        // Option pour ajuster manuellement
+                                    }
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.black)
+                                }
+
+                                HStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(.orange)
+
+                                    Text(String(format: "%.1f", estimatedGrains))
+                                        .font(.system(size: 32, weight: .bold))
+                                        .foregroundStyle(.orange)
+
+                                    Text("grains")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(.black.opacity(0.6))
+                                }
+                            }
+                            .padding(20)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.orange.opacity(0.15))
+                            )
+
+                            // Bouton Ajouter l'objectif
+                            Button {
+                                Task {
+                                    await createGoal()
+                                }
+                            } label: {
+                                Group {
+                                    if isCreating {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Text("Ajouter l'objectif")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                }
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(title.isEmpty ? Color.gray : Color.orange)
+                                )
+                            }
+                            .disabled(title.isEmpty || isCreating)
+
+                            // Exemples pour cette catégorie
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Exemples pour cette catégorie :")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.black.opacity(0.6))
+
+                                HStack(spacing: 8) {
+                                    ForEach(categoryExamples.prefix(3), id: \.self) { example in
+                                        Button {
+                                            title = example
+                                        } label: {
+                                            Text(example)
+                                                .font(.system(size: 14))
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 10)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                                        .background(
+                                                            RoundedRectangle(cornerRadius: 8)
+                                                                .fill(Color.white)
+                                                        )
+                                                )
+                                                .foregroundStyle(.black)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(minLength: 40)
                         }
-
-                        Slider(value: $estimatedGrains, in: 0.5...10.0, step: 0.5)
-
-                        Text("L'app ajustera cette valeur selon tes habitudes et la difficulté.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
                     }
                 }
             }
-            .navigationTitle("Nouvel Objectif")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .foregroundStyle(.secondary)
                     }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Créer") {
-                        Task {
-                            await createGoal()
-                        }
-                    }
-                    .disabled(title.isEmpty || isCreating)
                 }
             }
         }

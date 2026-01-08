@@ -122,6 +122,7 @@ class FriendManager: ObservableObject {
         let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
         let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
         let profileImageURL = data["profileImageURL"] as? String
+        let isPublic = data["isPublic"] as? Bool ?? true
 
         return UserData(
             uid: uid,
@@ -131,7 +132,8 @@ class FriendManager: ObservableObject {
             gender: gender,
             birthDate: birthDateTimestamp.dateValue(),
             createdAt: createdAtTimestamp.dateValue(),
-            profileImageURL: profileImageURL
+            profileImageURL: profileImageURL,
+            isPublic: isPublic
         )
     }
 

@@ -9,6 +9,7 @@ import UIKit
 import FirebaseAuth
 import FirebaseFirestore
 import MessageUI
+import UserNotifications
 
 struct ProfileView: View {
     let viewModel: HourglassViewModel?
@@ -17,35 +18,37 @@ struct ProfileView: View {
     @State private var showFindFriends = false
     @State private var showMessages = false
     @State private var unreadMessagesCount = 0
+    @State private var showDeleteConfirmation = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 0) {
-                    // Header violet/rose "Mon Profil"
-                    ProfileHeaderSection(showEditProfile: $showEditProfile)
-                    
-                    VStack(spacing: 24) {
-                        // Card de profil principal
-                        MainProfileCard(viewModel: viewModel)
-                            .padding(.horizontal)
-                            .padding(.top, 24)
-                        
-                        // Section "Mes Sabliers Complices"
-            FriendsSection(showFindFriends: $showFindFriends)
-                .padding(.horizontal)
-                        
-                        // Section Paramètres
-                        SettingsSection()
-                            .padding(.horizontal)
-                        
-                        Spacer(minLength: 40)
+                VStack(spacing: 20) {
+                    MainProfileCard(viewModel: viewModel, showEditProfile: $showEditProfile)
+
+                    FriendsSection(showFindFriends: $showFindFriends)
+
+                    SettingsSection()
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Text("Supprimer mon compte")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.red)
                     }
+                    .padding(.top, 4)
+
+                    Spacer(minLength: 24)
                 }
+                .padding(.horizontal)
+                .padding(.top, 12)
             }
-            .navigationTitle("Mon Compte")
-            .navigationBarTitleDisplayMode(.large)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Bouton Messages avec badge
                 ToolbarItem(placement: .topBarTrailing) {
@@ -91,6 +94,12 @@ struct ProfileView: View {
             .sheet(isPresented: $showMessages) {
                 NotificationsView(viewModel: viewModel)
             }
+            .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
+                Button("Annuler", role: .cancel) {}
+                Button("Supprimer", role: .destructive) {}
+            } message: {
+                Text("Cette action est irréversible.")
+            }
             .onAppear {
                 Task {
                     // Charger le nombre de messages non lus
@@ -101,60 +110,11 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - Profile Header Section (Violet/Rose)
-
-struct ProfileHeaderSection: View {
-    @Binding var showEditProfile: Bool
-    
-    var body: some View {
-        ZStack {
-            // Gradient violet/rose
-            LinearGradient(
-                colors: [
-                    Color(red: 0.7, green: 0.4, blue: 0.9),  // Violet
-                    Color(red: 0.9, green: 0.4, blue: 0.7)   // Rose
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 100)
-            
-            HStack {
-                Text("Mon Profil")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                
-                Spacer()
-                
-                Button {
-                    showEditProfile = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "pencil")
-                            .font(.subheadline)
-                        Text("Modifier")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background {
-                        Capsule()
-                            .fill(Color.white.opacity(0.2))
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-        }
-    }
-}
-
 // MARK: - Main Profile Card
 
 struct MainProfileCard: View {
     let viewModel: HourglassViewModel?
+    @Binding var showEditProfile: Bool
 
     @State private var userData: UserData? = nil
     @State private var isLoading = true
@@ -163,6 +123,7 @@ struct MainProfileCard: View {
     @State private var selectedImage: UIImage? = nil
     @State private var isUploadingImage = false
     @State private var uploadError: String? = nil
+    @State private var friendsCount = 0
 
     var username: String {
         userData?.username ?? "Utilisateur"
@@ -176,109 +137,133 @@ struct MainProfileCard: View {
         userData?.email ?? Auth.auth().currentUser?.email ?? "email@exemple.com"
     }
 
+    var isPublic: Bool {
+        userData?.isPublic ?? true
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             if isLoading {
                 ProgressView()
                     .padding()
             } else {
-                // Photo de profil
                 ZStack(alignment: .bottomTrailing) {
                     if isUploadingImage {
-                        // Afficher un spinner pendant l'upload
                         ZStack {
                             Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 100, height: 100)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 96, height: 96)
                             ProgressView()
                         }
                     } else {
                         ProfileImageView(
                             imageURL: userData?.profileImageURL,
                             username: username,
-                            size: 100,
-                            gradientColors: [.purple, .pink]
+                            size: 96,
+                            gradientColors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)]
                         )
+                        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
                     }
 
-                    // Badge caméra cliquable
                     Button {
                         showImagePicker = true
                     } label: {
                         Circle()
-                            .fill(.purple)
-                            .frame(width: 32, height: 32)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 30, height: 30)
+                            .shadow(color: .orange.opacity(0.4), radius: 4, x: 0, y: 2)
                             .overlay {
                                 Image(systemName: "camera.fill")
-                                    .font(.system(size: 14))
+                                    .font(.system(size: 13))
                                     .foregroundStyle(.white)
                             }
                     }
-                    .offset(x: 5, y: 5)
+                    .offset(x: 4, y: 4)
                 }
 
-                // Informations
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Text(displayName)
                         .font(.title2)
                         .fontWeight(.bold)
 
                     Text("@\(username)")
                         .font(.subheadline)
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
 
-                    HStack(spacing: 6) {
-                        Image(systemName: "envelope.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(email)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                HStack(spacing: 28) {
+                    StatItem(title: "\(friendsCount)", subtitle: "Complices")
+                    Divider()
+                        .frame(height: 30)
+                    StatItem(title: isPublic ? "Public" : "Privé", subtitle: "Profil")
+                }
+                .padding(.horizontal, 24)
 
-                    HStack(spacing: 6) {
-                        Image(systemName: "eye.fill")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                        Text("Profil public")
+                HStack(spacing: 10) {
+                    Button {
+                        showEditProfile = true
+                    } label: {
+                        Text("Modifier le profil")
                             .font(.subheadline)
-                            .foregroundStyle(.blue)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background {
+                                Capsule()
+                                    .fill(Color(uiColor: .systemBackground))
+                                    .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
+                            }
                     }
 
                     Button {
                         showShareOptions = true
                     } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.subheadline)
-                            Text("Partager mon profil")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        }
-                        .foregroundStyle(.purple)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background {
-                            Capsule()
-                                .stroke(Color.purple, lineWidth: 1.5)
-                        }
+                        Circle()
+                            .fill(Color(uiColor: .systemBackground))
+                            .frame(width: 38, height: 38)
+                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
+                            .overlay {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
                     }
-                    .padding(.top, 8)
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.top, 24)
+        .padding(.bottom, 20)
         .background {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(uiColor: .systemBackground))
-                .shadow(color: .black.opacity( 0.05), radius: 10)
+            LinearGradient(
+                colors: [
+                    Color(red: 0.99, green: 0.96, blue: 0.9),
+                    Color(uiColor: .systemBackground)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
+        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26)
+                .stroke(Color.black.opacity(0.04), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 6)
         .onAppear {
             loadUserData()
+            loadFriendsCount()
         }
         .sheet(isPresented: $showShareOptions) {
-            ShareOptionsView(shareText: generateShareText())
+            ShareProfileView(shareText: generateShareText())
         }
         .sheet(isPresented: $showImagePicker) {
             ProfileImageSourcePicker(selectedImage: $selectedImage)
@@ -317,6 +302,19 @@ struct MainProfileCard: View {
                 await MainActor.run {
                     isLoading = false
                 }
+            }
+        }
+    }
+
+    private func loadFriendsCount() {
+        Task {
+            do {
+                let friends = try await FriendManager.shared.getFriends()
+                await MainActor.run {
+                    friendsCount = friends.count
+                }
+            } catch {
+                print("Erreur lors du chargement des amis: \(error.localizedDescription)")
             }
         }
     }
@@ -367,6 +365,23 @@ struct MainProfileCard: View {
     }
 }
 
+struct StatItem: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.headline)
+                .fontWeight(.bold)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 80)
+    }
+}
+
 // MARK: - Friends Section
 
 struct FriendsSection: View {
@@ -374,89 +389,81 @@ struct FriendsSection: View {
     @State private var friends: [UserData] = []
     @State private var isLoading = true
     @State private var errorText: String?
+    @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.2.fill")
-                        .font(.title3)
-                        .foregroundStyle(.blue)
-                    Text("Mes Sabliers Complices")
-                        .font(.headline)
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
                 }
-                
-                Spacer()
-                
-                Button {
-                    loadFriends()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(.blue)
+            } label: {
+                HStack(spacing: 12) {
+                    SettingsIcon(symbol: "person.2.fill", color: .blue)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sabliers Complices")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                        Text(subtitleText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
+                .padding()
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Divider()
+
+                if isLoading {
+                    ProgressView()
+                        .padding()
+                } else if friends.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("Aucun complice pour le moment")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if let errorText {
+                            Text(errorText)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .padding()
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(friends) { friend in
+                            RealFriendCard(friend: friend) {
+                                loadFriends()
+                            }
+                        }
+                    }
+                    .padding()
+                }
+
+                Divider()
 
                 Button {
                     showFindFriends = true
                 } label: {
-                    Text("Trouver des Complices")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background {
-                            Capsule()
-                                .fill(Color.blue)
-                        }
-                }
-            }
-            
-            if isLoading {
-                ProgressView()
+                    HStack(spacing: 12) {
+                        SettingsIcon(symbol: "magnifyingglass", color: .orange)
+                        Text("Trouver des complices")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
                     .padding()
-            } else if friends.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.2.slash")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("Aucun complice pour le moment")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Ajoute des amis pour partager tes victoires !")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    if let errorText {
-                        Text(errorText)
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                    }
                 }
-                .padding()
-            } else {
-                DisclosureGroup(
-                    isExpanded: .constant(true),
-                    content: {
-                        VStack(spacing: 12) {
-                            ForEach(friends) { friend in
-                                RealFriendCard(friend: friend) {
-                                    loadFriends()
-                                }
-                            }
-                        }
-                        .padding(.top, 12)
-                    },
-                    label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "heart.fill")
-                                .foregroundStyle(.red)
-                            Text("Mes Sabliers Complices (\(friends.count))")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                        }
-                    }
-                )
-                .tint(.red)
+                .buttonStyle(.plain)
             }
         }
         .padding()
@@ -468,6 +475,19 @@ struct FriendsSection: View {
         .onAppear {
             loadFriends()
         }
+    }
+
+    private var subtitleText: String {
+        if isLoading {
+            return "Chargement..."
+        }
+
+        if friends.isEmpty {
+            return "Aucune connexion"
+        }
+
+        let suffix = friends.count > 1 ? "connexions" : "connexion"
+        return "\(friends.count) \(suffix)"
     }
 
     private func loadFriends() {
@@ -515,67 +535,46 @@ struct RealFriendCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
-            Circle()
-                .fill(LinearGradient(colors: [profileColor, profileColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 50, height: 50)
-                .overlay {
-                    Text(friend.username.prefix(1).uppercased())
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                }
+        HStack(spacing: 14) {
+            Button {
+                showFriendProfile = true
+            } label: {
+                HStack(spacing: 14) {
+                    if let imageURL = friend.profileImageURL, !imageURL.isEmpty {
+                        ProfileImageView(
+                            imageURL: imageURL,
+                            username: friend.username,
+                            size: 46,
+                            gradientColors: [profileColor, profileColor.opacity(0.6)]
+                        )
+                    } else {
+                        Circle()
+                            .fill(LinearGradient(colors: [profileColor, profileColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 46, height: 46)
+                            .overlay {
+                                Text(friend.username.prefix(1).uppercased())
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                            }
+                    }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text("@\(friend.username)")
-                    .font(.caption)
-                    .foregroundStyle(.purple)
-                HStack(spacing: 4) {
-                    Image(systemName: "sparkles")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                    Text("Depuis \(friendSince)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(displayName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text("@\(friend.username)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Depuis \(friendSince)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
                 }
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 8) {
-                Button {} label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "heart.fill")
-                            .font(.caption2)
-                        Text("Transfuser 1 Grain")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background {
-                        Capsule()
-                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                    }
-                }
-
-                Button {
-                    showFriendProfile = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.caption2)
-                        Text("Voir le profil")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(.blue)
-                }
-            }
+            .buttonStyle(.plain)
 
             Button {
                 showDeleteConfirmation = true
@@ -585,7 +584,8 @@ struct RealFriendCard: View {
                     .foregroundStyle(.gray)
             }
         }
-        .padding()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background {
             RoundedRectangle(cornerRadius: 15)
                 .fill(Color(uiColor: .secondarySystemBackground))
@@ -620,61 +620,88 @@ struct RealFriendCard: View {
 struct SettingsSection: View {
     @State private var showTutorial = false
     @State private var showLogoutConfirmation = false
-    @State private var showDeleteConfirmation = false
+    @AppStorage("settings.notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("settings.soundsEnabled") private var soundsEnabled = true
+    @AppStorage("settings.calmModeEnabled") private var calmModeEnabled = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "gearshape.fill")
-                    .foregroundStyle(.gray)
-                Text("Paramètres")
-                    .font(.headline)
-            }
-            .padding()
-            .padding(.bottom, 8)
-            
-            Divider()
+        VStack(spacing: 14) {
+            VStack(spacing: 0) {
+                SettingsRow(
+                    symbol: "bell.fill",
+                    color: .orange,
+                    title: "Notifications",
+                    subtitle: notificationsEnabled ? "Activées" : "Désactivées"
+                ) {
+                    Toggle("", isOn: $notificationsEnabled)
+                        .labelsHidden()
+                }
 
-            Button { showTutorial = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.counterclockwise")
-                        .foregroundStyle(.blue)
-                    Text("Revoir le tutoriel")
-                        .foregroundStyle(.primary)
-                    Spacer()
+                Divider()
+
+                SettingsRow(
+                    symbol: "speaker.wave.2.fill",
+                    color: .green,
+                    title: "Sons",
+                    subtitle: soundsEnabled ? "Activés" : "Désactivés"
+                ) {
+                    Toggle("", isOn: $soundsEnabled)
+                        .labelsHidden()
                 }
-                .padding()
+
+                Divider()
+
+                SettingsRow(
+                    symbol: "moon.fill",
+                    color: .purple,
+                    title: "Mode calme",
+                    subtitle: calmModeEnabled ? "Activé" : "Désactivé"
+                ) {
+                    Toggle("", isOn: $calmModeEnabled)
+                        .labelsHidden()
+                }
+            }
+            .background {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: .black.opacity(0.05), radius: 10)
             }
 
-            Divider()
-            
-            Button { showLogoutConfirmation = true } label: {
-                HStack(spacing: 12) {
-                    Text("Déconnexion")
-                        .foregroundStyle(.primary)
-                    Spacer()
+            VStack(spacing: 0) {
+                Button { showTutorial = true } label: {
+                    SettingsRow(
+                        symbol: "arrow.counterclockwise",
+                        color: .purple,
+                        title: "Revoir le tutoriel",
+                        subtitle: nil
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .padding()
-            }
-            
-            Divider()
-            
-            Button { showDeleteConfirmation = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.red)
-                    Text("Supprimer mon compte")
-                        .foregroundStyle(.red)
-                    Spacer()
+                .buttonStyle(.plain)
+
+                Divider()
+
+                Button { showLogoutConfirmation = true } label: {
+                    SettingsRow(
+                        symbol: "rectangle.portrait.and.arrow.right",
+                        color: .gray,
+                        title: "Déconnexion",
+                        subtitle: nil
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .padding()
+                .buttonStyle(.plain)
             }
-        }
-        .background {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(uiColor: .systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 10)
+            .background {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: .black.opacity(0.05), radius: 10)
+            }
         }
         .alert("Revoir le tutoriel", isPresented: $showTutorial) {
             Button("OK", role: .cancel) { }
@@ -684,16 +711,122 @@ struct SettingsSection: View {
             Button("Déconnexion", role: .destructive) {
                 do {
                     try Auth.auth().signOut()
-                    dismiss() // Ferme la feuille de profil
+                    dismiss()
                 } catch {
                     print("Erreur de déconnexion: \(error)")
                 }
             }
         }
-        .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
-            Button("Annuler", role: .cancel) { }
-            Button("Supprimer", role: .destructive) {}
+        .onChange(of: notificationsEnabled) { _, newValue in
+            handleNotificationsToggle(newValue)
         }
+        .onChange(of: soundsEnabled) { _, _ in
+            rescheduleNotificationsIfNeeded()
+        }
+        .onChange(of: calmModeEnabled) { _, _ in
+            rescheduleNotificationsIfNeeded()
+        }
+    }
+
+    private func handleNotificationsToggle(_ enabled: Bool) {
+        Task {
+            if enabled {
+                do {
+                    let authorized = try await NotificationManager.shared.requestAuthorization()
+                    if authorized {
+                        try await NotificationManager.shared.scheduleDailyNotifications()
+                    } else {
+                        await MainActor.run {
+                            notificationsEnabled = false
+                        }
+                    }
+                } catch {
+                    print("Erreur lors de l'activation des notifications: \(error)")
+                    await MainActor.run {
+                        notificationsEnabled = false
+                    }
+                }
+            } else {
+                let center = UNUserNotificationCenter.current()
+                center.removeAllPendingNotificationRequests()
+                center.removeAllDeliveredNotifications()
+            }
+        }
+    }
+
+    private func rescheduleNotificationsIfNeeded() {
+        guard notificationsEnabled else { return }
+
+        Task {
+            do {
+                let authorized = try await NotificationManager.shared.requestAuthorization()
+                if authorized {
+                    try await NotificationManager.shared.scheduleDailyNotifications()
+                }
+            } catch {
+                print("Erreur lors de la mise à jour des notifications: \(error)")
+            }
+        }
+    }
+}
+
+struct SettingsRow<Trailing: View>: View {
+    let symbol: String
+    let color: Color
+    let title: String
+    let subtitle: String?
+    @ViewBuilder let trailing: Trailing
+
+    init(
+        symbol: String,
+        color: Color,
+        title: String,
+        subtitle: String?,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.symbol = symbol
+        self.color = color
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SettingsIcon(symbol: symbol, color: color)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            trailing
+        }
+        .padding()
+    }
+}
+
+struct SettingsIcon: View {
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        Circle()
+            .fill(color.opacity(0.18))
+            .frame(width: 34, height: 34)
+            .overlay {
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(color)
+            }
     }
 }
 
@@ -705,6 +838,7 @@ struct EditProfileView: View {
     @State private var email = ""
     @State private var selectedGender: Gender = .notSpecified
     @State private var birthDate = Date()
+    @State private var isPublic = true
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -740,6 +874,10 @@ struct EditProfileView: View {
                             in: ...Date(),
                             displayedComponents: .date
                         )
+                    }
+
+                    Section("Confidentialité") {
+                        Toggle("Profil public", isOn: $isPublic)
                     }
 
                     if let errorMessage {
@@ -799,6 +937,7 @@ struct EditProfileView: View {
                     email = data?.email ?? currentUser.email ?? ""
                     selectedGender = data?.gender ?? .notSpecified
                     birthDate = data?.birthDate ?? Date()
+                    isPublic = data?.isPublic ?? true
                     isLoading = false
                 }
             } catch {
@@ -828,7 +967,8 @@ struct EditProfileView: View {
                 try await db.collection("users").document(currentUser.uid).updateData([
                     "displayName": fullName,
                     "gender": selectedGender.rawValue,
-                    "birthDate": Timestamp(date: birthDate)
+                    "birthDate": Timestamp(date: birthDate),
+                    "isPublic": isPublic
                 ])
 
                 await MainActor.run {
@@ -1247,29 +1387,34 @@ struct PendingRequestCard: View {
     }
 }
 
-// MARK: - Share Options View
+// MARK: - Share Profile View
 
-struct ShareOptionsView: View {
+struct ShareProfileView: View {
     let shareText: String
     @Environment(\.dismiss) private var dismiss
-    @State private var showMessageComposer = false
-    @State private var showMailComposer = false
     @State private var showCopyConfirmation = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 12) {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .pink],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                // Header avec design orange
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
+                            .frame(width: 80, height: 80)
+                            .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
+
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.white)
+                    }
 
                     Text("Partager mon profil")
                         .font(.title2)
@@ -1280,83 +1425,11 @@ struct ShareOptionsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 40)
 
                 // Options de partage
                 VStack(spacing: 16) {
-                    // SMS
-                    Button {
-                        showMessageComposer = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.green.opacity(0.1))
-                                    .frame(width: 50, height: 50)
-
-                                Image(systemName: "message.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(.green)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Message")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text("Partager par SMS")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .background {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.secondarySystemBackground))
-                        }
-                    }
-
-                    // Mail
-                    Button {
-                        showMailComposer = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.1))
-                                    .frame(width: 50, height: 50)
-
-                                Image(systemName: "envelope.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(.blue)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Mail")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text("Partager par email")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .background {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.secondarySystemBackground))
-                        }
-                    }
-
-                    // Copier
+                    // Copier le texte
                     Button {
                         UIPasteboard.general.string = shareText
                         showCopyConfirmation = true
@@ -1368,16 +1441,16 @@ struct ShareOptionsView: View {
                         HStack(spacing: 16) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.purple.opacity(0.1))
-                                    .frame(width: 50, height: 50)
+                                    .fill(Color.orange.opacity(0.15))
+                                    .frame(width: 56, height: 56)
 
                                 Image(systemName: "doc.on.doc.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(.purple)
+                                    .font(.title2)
+                                    .foregroundStyle(.orange)
                             }
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Copier")
+                                Text("Copier le texte")
                                     .font(.headline)
                                     .foregroundStyle(.primary)
                                 Text("Copier dans le presse-papiers")
@@ -1389,6 +1462,7 @@ struct ShareOptionsView: View {
 
                             if showCopyConfirmation {
                                 Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
                                     .foregroundStyle(.green)
                                     .transition(.scale.combined(with: .opacity))
                             } else {
@@ -1399,98 +1473,63 @@ struct ShareOptionsView: View {
                         .padding()
                         .background {
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.secondarySystemBackground))
+                                .fill(Color(uiColor: .secondarySystemBackground))
                         }
                     }
+                    .buttonStyle(.plain)
+
+                    // Plus d'options (ouvre le ShareSheet natif)
+                    ShareLink(item: shareText) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.orange.opacity(0.15))
+                                    .frame(width: 56, height: 56)
+
+                                Image(systemName: "square.and.arrow.up.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.orange)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Plus d'options")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Messages, Mail, WhatsApp, etc.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(uiColor: .secondarySystemBackground))
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
 
                 Spacer()
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Fermer") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
-            .sheet(isPresented: $showMessageComposer) {
-                MessageComposeView(body: shareText)
-            }
-            .sheet(isPresented: $showMailComposer) {
-                MailComposeView(subject: "Rejoins-moi sur Hourglass 4 !", body: shareText)
-            }
-        }
-    }
-}
-
-// MARK: - Message Composer
-
-struct MessageComposeView: UIViewControllerRepresentable {
-    let body: String
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
-        let controller = MFMessageComposeViewController()
-        controller.body = body
-        controller.messageComposeDelegate = context.coordinator
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: MFMessageComposeViewController, context: Context) {
-        // Rien à mettre à jour
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
-        let parent: MessageComposeView
-
-        init(_ parent: MessageComposeView) {
-            self.parent = parent
-        }
-
-        func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
-            parent.dismiss()
-        }
-    }
-}
-
-// MARK: - Mail Composer
-
-struct MailComposeView: UIViewControllerRepresentable {
-    let subject: String
-    let body: String
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> MFMailComposeViewController {
-        let controller = MFMailComposeViewController()
-        controller.setSubject(subject)
-        controller.setMessageBody(body, isHTML: false)
-        controller.mailComposeDelegate = context.coordinator
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {
-        // Rien à mettre à jour
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
-        let parent: MailComposeView
-
-        init(_ parent: MailComposeView) {
-            self.parent = parent
-        }
-
-        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
-            parent.dismiss()
         }
     }
 }

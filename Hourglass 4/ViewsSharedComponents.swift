@@ -66,11 +66,12 @@ struct StatCardView: View {
 struct PotentialCardView: View {
     let allocated: Double
     let remaining: Double
-    
+    var totalBudget: Double = 10.0
+
     var total: Double {
-        10.0
+        totalBudget
     }
-    
+
     var progress: Double {
         allocated / total
     }

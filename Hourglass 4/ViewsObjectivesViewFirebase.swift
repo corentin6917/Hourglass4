@@ -12,6 +12,8 @@ struct ObjectivesViewFirebase: View {
     @StateObject private var goalManager = GoalManager.shared
     @State private var showNewGoal = false
     @State private var showProfile = false
+    @State private var dailyBudget: Double = 10.0
+    @State private var showBudgetInfo = false
 
     var todayGoals: [FirebaseGoal] {
         goalManager.todayGoals
@@ -23,8 +25,8 @@ struct ObjectivesViewFirebase: View {
     }
 
     var potentialRemaining: Double {
-        // Le potentiel restant = 10 grains - grains gagnés (pas les grains "promis")
-        10.0 - potentialAllocated
+        // Le potentiel restant = budget quotidien - grains gagnés
+        dailyBudget - potentialAllocated
     }
 
     var completedGoals: [FirebaseGoal] {
@@ -43,11 +45,24 @@ struct ObjectivesViewFirebase: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Section: Potentiel du Jour
-                    PotentialCardView(
-                        allocated: potentialAllocated,
-                        remaining: potentialRemaining
-                    )
+                    // Section: Potentiel du Jour avec icône info
+                    ZStack(alignment: .topTrailing) {
+                        PotentialCardView(
+                            allocated: potentialAllocated,
+                            remaining: potentialRemaining,
+                            totalBudget: dailyBudget
+                        )
+
+                        // Icône "i" d'information
+                        Button {
+                            showBudgetInfo = true
+                        } label: {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.orange)
+                                .padding(8)
+                        }
+                    }
                     .padding(.horizontal)
 
                     // Règles
@@ -157,13 +172,125 @@ struct ObjectivesViewFirebase: View {
             .sheet(isPresented: $showProfile) {
                 ProfileView(viewModel: nil)
             }
+            .sheet(isPresented: $showBudgetInfo) {
+                BudgetInfoSheet(currentBudget: dailyBudget)
+            }
             .task {
                 await goalManager.loadTodayGoals()
+                dailyBudget = await goalManager.getDailyGrainsBudget()
             }
             .refreshable {
                 await goalManager.loadTodayGoals()
+                dailyBudget = await goalManager.getDailyGrainsBudget()
             }
         }
+    }
+}
+
+// MARK: - Budget Info Sheet
+
+struct BudgetInfoSheet: View {
+    let currentBudget: Double
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 50))
+                            .foregroundStyle(.orange)
+
+                        Text("Grains Adaptatifs")
+                            .font(.title2)
+                            .fontWeight(.bold)
+
+                        Text("Ton budget quotidien: \(Int(currentBudget)) grains")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom)
+
+                    // Explication
+                    VStack(alignment: .leading, spacing: 16) {
+                        InfoSection(
+                            icon: "brain.head.profile",
+                            title: "Comment ça marche ?",
+                            description: "Ton budget quotidien s'adapte automatiquement à tes performances des 7 derniers jours pour te motiver et t'aider à progresser."
+                        )
+
+                        InfoSection(
+                            icon: "arrow.down.circle",
+                            title: "Performance faible (< 40%)",
+                            description: "Si tu accomplis peu d'objectifs plusieurs jours de suite, ton budget diminue pour rendre le 100% atteignable et te remotiver."
+                        )
+
+                        InfoSection(
+                            icon: "arrow.right.circle",
+                            title: "Performance équilibrée (40-60%)",
+                            description: "Tu maintiens un bon rythme! Ton budget reste stable."
+                        )
+
+                        InfoSection(
+                            icon: "arrow.up.circle",
+                            title: "Performance élevée (> 75%)",
+                            description: "Excellent! Ton budget augmente progressivement pour te challenger davantage."
+                        )
+
+                        InfoSection(
+                            icon: "sparkles",
+                            title: "Limites du système",
+                            description: "Budget minimum: 5 grains\nBudget maximum: 15 grains\nAjustement progressif: max ±2 grains par jour"
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical, 24)
+            }
+            .navigationTitle("Grains Adaptatifs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct InfoSection: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundStyle(.orange)
+                .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.orange.opacity(0.08))
+        )
     }
 }
 

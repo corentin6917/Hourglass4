@@ -263,6 +263,9 @@ final class HourglassViewModel: ObservableObject {
     
     private func setupDailyNotifications() {
         Task {
+            let notificationsEnabled = UserDefaults.standard.object(forKey: "settings.notificationsEnabled") as? Bool ?? true
+            guard notificationsEnabled else { return }
+
             do {
                 let authorized = try await NotificationManager.shared.requestAuthorization()
                 if authorized {

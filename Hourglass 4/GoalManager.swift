@@ -194,6 +194,130 @@ class GoalManager: ObservableObject {
 
         return historicalData
     }
+
+    // MARK: - Système de Grains Adaptatifs
+
+    /// Calcule le nombre de grains disponibles pour aujourd'hui basé sur les performances des 7 derniers jours
+    func calculateAdaptiveGrainsBudget() async -> Double {
+        guard let currentUser = Auth.auth().currentUser else {
+            return 10.0 // Valeur par défaut
+        }
+
+        print("🧮 calculateAdaptiveGrainsBudget: Calcul du budget adaptatif")
+
+        // Récupérer les données des 7 derniers jours
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
+
+        do {
+            let snapshot = try await db.collection("goals")
+                .whereField("userId", isEqualTo: currentUser.uid)
+                .whereField("createdAt", isGreaterThanOrEqualTo: Timestamp(date: sevenDaysAgo))
+                .whereField("createdAt", isLessThan: Timestamp(date: today))
+                .getDocuments()
+
+            let goals = snapshot.documents.compactMap { FirebaseGoal.from(document: $0) }
+
+            // Grouper par jour et calculer le ratio pour chaque jour
+            var dailyRatios: [Double] = []
+
+            for dayOffset in 0..<7 {
+                guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
+                let startOfDay = calendar.startOfDay(for: date)
+                let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+
+                let dayGoals = goals.filter {
+                    $0.createdAt >= startOfDay && $0.createdAt < endOfDay
+                }
+
+                let earned = dayGoals.filter { $0.status == .completed }.reduce(0.0) { $0 + $1.grainValue }
+                let total = dayGoals.reduce(0.0) { $0 + $1.grainValue }
+
+                if total > 0 {
+                    let ratio = earned / total
+                    dailyRatios.append(ratio)
+                    print("   📊 Jour -\(dayOffset): \(earned)/\(total) = \(Int(ratio * 100))%")
+                }
+            }
+
+            // Calculer la moyenne des ratios
+            guard !dailyRatios.isEmpty else {
+                print("   ℹ️ Pas assez de données, retour à 10 grains")
+                return 10.0
+            }
+
+            let averageRatio = dailyRatios.reduce(0.0, +) / Double(dailyRatios.count)
+            print("   📈 Moyenne sur 7 jours: \(Int(averageRatio * 100))%")
+
+            // Récupérer le budget actuel depuis le profil utilisateur
+            let userDoc = try await db.collection("users").document(currentUser.uid).getDocument()
+            let currentBudget = userDoc.data()?["dailyGrainsBudget"] as? Double ?? 10.0
+
+            // Calculer l'ajustement basé sur la performance
+            var adjustment: Double = 0.0
+
+            switch averageRatio {
+            case ..<0.30:
+                adjustment = -2.0 // Réduction rapide
+            case 0.30..<0.40:
+                adjustment = -1.0 // Réduction douce
+            case 0.40..<0.60:
+                adjustment = 0.0  // Zone d'équilibre
+            case 0.60..<0.75:
+                adjustment = 0.5  // Légère augmentation
+            case 0.75..<0.90:
+                adjustment = 1.0  // Bonne augmentation
+            default: // >= 0.90
+                adjustment = 2.0  // Excellente performance
+            }
+
+            // Appliquer l'ajustement avec limites min/max
+            var newBudget = currentBudget + adjustment
+            newBudget = max(5.0, min(15.0, newBudget)) // Entre 5 et 15 grains
+
+            print("   🎯 Budget actuel: \(currentBudget) → Nouveau: \(newBudget) (ajustement: \(adjustment))")
+
+            // Sauvegarder le nouveau budget dans Firebase
+            try await db.collection("users").document(currentUser.uid).setData([
+                "dailyGrainsBudget": newBudget,
+                "lastBudgetUpdate": Timestamp(date: Date())
+            ], merge: true)
+
+            return newBudget
+
+        } catch {
+            print("❌ Erreur lors du calcul du budget adaptatif: \(error.localizedDescription)")
+            return 10.0
+        }
+    }
+
+    /// Récupère le budget quotidien de grains pour l'utilisateur
+    func getDailyGrainsBudget() async -> Double {
+        guard let currentUser = Auth.auth().currentUser else {
+            return 10.0
+        }
+
+        do {
+            let userDoc = try await db.collection("users").document(currentUser.uid).getDocument()
+
+            // Vérifier si le budget a été calculé aujourd'hui
+            if let lastUpdate = (userDoc.data()?["lastBudgetUpdate"] as? Timestamp)?.dateValue() {
+                let calendar = Calendar.current
+                if calendar.isDateInToday(lastUpdate) {
+                    // Budget déjà à jour pour aujourd'hui
+                    return userDoc.data()?["dailyGrainsBudget"] as? Double ?? 10.0
+                }
+            }
+
+            // Recalculer le budget si pas à jour
+            return await calculateAdaptiveGrainsBudget()
+
+        } catch {
+            print("❌ Erreur lors de la récupération du budget: \(error.localizedDescription)")
+            return 10.0
+        }
+    }
 }
 
 // MARK: - Modèle Firebase pour les objectifs

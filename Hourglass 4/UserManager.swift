@@ -30,6 +30,7 @@ struct UserData: Identifiable, Codable {
     let birthDate: Date
     let createdAt: Date
     let profileImageURL: String?
+    let isPublic: Bool
 
     init(
         uid: String,
@@ -39,7 +40,8 @@ struct UserData: Identifiable, Codable {
         gender: Gender,
         birthDate: Date,
         createdAt: Date,
-        profileImageURL: String? = nil
+        profileImageURL: String? = nil,
+        isPublic: Bool = true
     ) {
         self.uid = uid
         self.email = email
@@ -49,6 +51,7 @@ struct UserData: Identifiable, Codable {
         self.birthDate = birthDate
         self.createdAt = createdAt
         self.profileImageURL = profileImageURL
+        self.isPublic = isPublic
     }
 
     var dictionary: [String: Any] {
@@ -59,7 +62,8 @@ struct UserData: Identifiable, Codable {
             "displayName": displayName ?? "",
             "gender": gender.rawValue,
             "birthDate": Timestamp(date: birthDate),
-            "createdAt": Timestamp(date: createdAt)
+            "createdAt": Timestamp(date: createdAt),
+            "isPublic": isPublic
         ]
 
         if let imageURL = profileImageURL {
@@ -106,7 +110,8 @@ class UserManager: ObservableObject {
             "displayName": displayName ?? "",
             "gender": gender.rawValue,
             "birthDate": Timestamp(date: birthDate),
-            "createdAt": Timestamp(date: Date())
+            "createdAt": Timestamp(date: Date()),
+            "isPublic": true
         ]
 
         try await db.collection("users").document(uid).setData(userData)
@@ -129,6 +134,7 @@ class UserManager: ObservableObject {
         let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
         let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
         let profileImageURL = data["profileImageURL"] as? String
+        let isPublic = data["isPublic"] as? Bool ?? true
 
         return UserData(
             uid: uid,
@@ -138,7 +144,8 @@ class UserManager: ObservableObject {
             gender: gender,
             birthDate: birthDateTimestamp.dateValue(),
             createdAt: createdAtTimestamp.dateValue(),
-            profileImageURL: profileImageURL
+            profileImageURL: profileImageURL,
+            isPublic: isPublic
         )
     }
 
