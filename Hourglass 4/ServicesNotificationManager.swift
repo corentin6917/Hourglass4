@@ -44,11 +44,11 @@ final class NotificationManager {
     
     private func scheduleMorningNotification() async throws {
         let content = UNMutableNotificationContent()
-        content.title = "⏳ Nouveaux Grains Disponibles"
+        content.title = "Grains Disponibles ⏳"
         content.body = "Tes 10 grains t'attendent. Quels sont tes objectifs aujourd'hui ?"
         content.sound = .default
         content.badge = 1
-        
+
         // Déclencher à 8h tous les jours
         var dateComponents = DateComponents()
         dateComponents.hour = 8
@@ -66,23 +66,23 @@ final class NotificationManager {
     
     private func scheduleEveningNotification() async throws {
         let content = UNMutableNotificationContent()
-        content.title = "🌙 Temps de Valider"
-        content.body = "Il est temps de valider tes victoires de la journée."
+        content.title = "Le Fil s'est rafraîchi ✨"
+        content.body = "Tes amis ont partagé leurs accomplissements. Va les voir !"
         content.sound = .default
         content.badge = 1
-        
-        // Déclencher à 20h tous les jours
+
+        // Déclencher à 21h tous les jours
         var dateComponents = DateComponents()
-        dateComponents.hour = 20
+        dateComponents.hour = 21
         dateComponents.minute = 0
-        
+
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
         let request = UNNotificationRequest(
-            identifier: "evening_validation",
+            identifier: "feed_refresh",
             content: content,
             trigger: trigger
         )
-        
+
         try await UNUserNotificationCenter.current().add(request)
     }
     

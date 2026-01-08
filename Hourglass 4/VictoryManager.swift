@@ -111,14 +111,16 @@ class VictoryManager: ObservableObject {
             isLoading = true
         }
 
-        print("🔍 VictoryManager - Chargement des victoires...")
+        print("=" + String(repeating: "=", count: 60))
+        print("🔍 VictoryManager - CHARGEMENT DU FIL DES VICTOIRES")
         print("🔍 VictoryManager - friendIds: \(friendIds)")
         print("🔍 VictoryManager - friendIds.count: \(friendIds.count)")
+        print("=" + String(repeating: "=", count: 60))
 
-        // Récupérer les victoires des amis (MODE TEST - toutes les victoires visibles)
+        // Récupérer les victoires des amis (fil quotidien 21h-21h)
         let now = Date()
         print("🔍 VictoryManager - Date actuelle: \(now)")
-        print("⚠️ MODE TEST: Restriction 21h désactivée - toutes les victoires sont visibles")
+        print("✅ MODE PRODUCTION: Seules les victoires visibles (21h-21h) sont affichées")
 
         // Si pas d'amis, on ne peut pas utiliser la query "in" avec un tableau vide
         if friendIds.isEmpty {
@@ -130,27 +132,30 @@ class VictoryManager: ObservableObject {
             return
         }
 
+        // Récupérer toutes les victoires récentes des amis (dernières 48h pour couvrir 2 cycles de 24h)
+        let twoDaysAgo = Calendar.current.date(byAdding: .day, value: -2, to: now) ?? now
+
         let snapshot = try await db.collection("victories")
             .whereField("userId", in: friendIds)
-            // TEMPORAIRE: Commenté pour test - normalement actif en production
-            // .whereField("visibleAt", isLessThanOrEqualTo: Timestamp(date: now))
-            // .whereField("expiresAt", isGreaterThan: Timestamp(date: now))
+            .whereField("createdAt", isGreaterThan: Timestamp(date: twoDaysAgo))
             .order(by: "createdAt", descending: true)
-            .limit(to: 50)
+            .limit(to: 100)
             .getDocuments()
 
         print("🔍 VictoryManager - Documents trouvés dans Firestore: \(snapshot.documents.count)")
 
-        // Afficher les données brutes de chaque document
-        snapshot.documents.forEach { doc in
-            print("   - Document ID: \(doc.documentID)")
-            let data = doc.data()
-            print("     userId: \(data["userId"] ?? "N/A")")
-            print("     username: \(data["username"] ?? "N/A")")
-            print("     goalTitle: \(data["goalTitle"] ?? "N/A")")
-        }
+        // Parser et filtrer les victoires visibles (entre visibleAt et expiresAt)
+        let allVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
 
-        let loadedVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
+        // Filtrer uniquement les victoires actuellement visibles
+        let loadedVictories = allVictories.filter { victory in
+            let isCurrentlyVisible = now >= victory.visibleAt && now <= victory.expiresAt
+            if !isCurrentlyVisible {
+                print("   ⏭️ Victoire non visible: \(victory.goalEmoji) \(victory.goalTitle)")
+                print("      Visible à: \(victory.visibleAt), Expire: \(victory.expiresAt), Maintenant: \(now)")
+            }
+            return isCurrentlyVisible
+        }
 
         print("🔍 VictoryManager - Victoires parsées avec succès: \(loadedVictories.count)")
 

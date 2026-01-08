@@ -320,75 +320,7 @@ struct FilterPillModern: View {
     }
 }
 
-// MARK: - Victory Detail View
-struct VictoryDetailView: View {
-    let victory: Victory
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: Theme.Spacing.large) {
-                    // Full photo
-                    if let photoURL = victory.photoURL {
-                        AsyncImage(url: URL(string: photoURL)) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                            case .failure, .empty:
-                                Rectangle()
-                                    .fill(Theme.Colors.surface)
-                                    .aspectRatio(1, contentMode: .fit)
-                            @unknown default:
-                                EmptyView()
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                        Text(victory.title)
-                            .font(Theme.Typography.headlineLarge)
-                            .foregroundColor(Theme.Colors.textPrimary)
-
-                        if let notes = victory.notes {
-                            Text(notes)
-                                .font(Theme.Typography.bodyLarge)
-                                .foregroundColor(Theme.Colors.textSecondary)
-                        }
-
-                        HStack {
-                            Label("\(victory.grainsEarned) grains", systemImage: "circle.fill")
-                                .font(Theme.Typography.labelMedium)
-                                .foregroundColor(Theme.Colors.accent)
-
-                            Spacer()
-
-                            Text(victory.timestamp.formatted())
-                                .font(Theme.Typography.bodySmall)
-                                .foregroundColor(Theme.Colors.textTertiary)
-                        }
-                    }
-                    .padding(Theme.Spacing.medium)
-                }
-            }
-            .background(Theme.Colors.background)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: Theme.IconSize.medium))
-                            .foregroundColor(Theme.Colors.textSecondary)
-                    }
-                }
-            }
-        }
-    }
-}
+// Note: VictoryDetailView is defined in ViewsVictoryFeedView.swift to avoid duplication
 
 // MARK: - Date Extension
 extension Date {

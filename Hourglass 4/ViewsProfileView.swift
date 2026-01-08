@@ -281,7 +281,7 @@ struct MainProfileCard: View {
             ShareOptionsView(shareText: generateShareText())
         }
         .sheet(isPresented: $showImagePicker) {
-            ImagePicker(selectedImage: $selectedImage)
+            ProfileImageSourcePicker(selectedImage: $selectedImage)
         }
         .onChange(of: selectedImage) { oldValue, newValue in
             if let image = newValue {

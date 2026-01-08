@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -69,9 +70,11 @@ struct UserData: Identifiable, Codable {
     }
 }
 
-class UserManager {
+class UserManager: ObservableObject {
     static let shared = UserManager()
     private let db = Firestore.firestore()
+
+    @Published var cachedUsers: [String: UserData] = [:]
 
     private init() {}
 
@@ -137,6 +140,24 @@ class UserManager {
             createdAt: createdAtTimestamp.dateValue(),
             profileImageURL: profileImageURL
         )
+    }
+
+    // Fetch user profile and cache it
+    func fetchUserProfile(userId: String) async {
+        // Check if already cached
+        if cachedUsers[userId] != nil {
+            return
+        }
+
+        do {
+            if let userData = try await getUserProfile(uid: userId) {
+                await MainActor.run {
+                    cachedUsers[userId] = userData
+                }
+            }
+        } catch {
+            print("Error fetching user profile: \(error)")
+        }
     }
 }
 

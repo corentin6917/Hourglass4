@@ -55,12 +55,14 @@ struct Victory: Identifiable, Codable {
         self.photoURL = photoURL
         self.createdAt = createdAt
 
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current // Utiliser le fuseau horaire local
 
         // Visible à partir de 21h le jour de création
         var todayComponents = calendar.dateComponents([.year, .month, .day], from: createdAt)
         todayComponents.hour = 21
         todayComponents.minute = 0
+        todayComponents.timeZone = calendar.timeZone
         self.visibleAt = calendar.date(from: todayComponents) ?? createdAt
 
         // Expire le lendemain à 21h (24h de visibilité)
@@ -68,6 +70,7 @@ struct Victory: Identifiable, Codable {
         var tomorrowComponents = calendar.dateComponents([.year, .month, .day], from: tomorrow)
         tomorrowComponents.hour = 21
         tomorrowComponents.minute = 0
+        tomorrowComponents.timeZone = calendar.timeZone
         self.expiresAt = calendar.date(from: tomorrowComponents) ?? tomorrow
 
         self.boostCount = boostCount

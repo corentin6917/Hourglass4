@@ -134,6 +134,52 @@ class GoalManager: ObservableObject {
         // Recharger les objectifs
         await loadTodayGoals()
     }
+
+    // MARK: - Charger l'historique des 7 derniers jours
+
+    func loadHistoricalData(days: Int = 7) async -> [(date: Date, earned: Double, potential: Double)] {
+        guard let currentUser = Auth.auth().currentUser else {
+            print("❌ loadHistoricalData: Utilisateur non connecté")
+            return []
+        }
+
+        print("🔄 loadHistoricalData: Chargement de l'historique pour \(days) jours")
+
+        let calendar = Calendar.current
+        var historicalData: [(date: Date, earned: Double, potential: Double)] = []
+
+        do {
+            for daysAgo in (0..<days).reversed() {
+                let date = calendar.date(byAdding: .day, value: -daysAgo, to: Date())!
+                let startOfDay = calendar.startOfDay(for: date)
+                let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+
+                let snapshot = try await db.collection("goals")
+                    .whereField("userId", isEqualTo: currentUser.uid)
+                    .whereField("createdAt", isGreaterThanOrEqualTo: Timestamp(date: startOfDay))
+                    .whereField("createdAt", isLessThan: Timestamp(date: endOfDay))
+                    .getDocuments()
+
+                let goals = snapshot.documents.compactMap { FirebaseGoal.from(document: $0) }
+
+                let earned = goals
+                    .filter { $0.status == .completed }
+                    .reduce(0) { $0 + $1.grainValue }
+
+                let potential = goals
+                    .filter { $0.status == .pending }
+                    .reduce(0) { $0 + $1.grainValue }
+
+                historicalData.append((date: startOfDay, earned: earned, potential: max(potential, 10.0)))
+
+                print("📊 \(startOfDay.formatted(date: .abbreviated, time: .omitted)): \(earned) grains gagnés / \(potential) potentiel")
+            }
+        } catch {
+            print("❌ Erreur lors du chargement de l'historique: \(error.localizedDescription)")
+        }
+
+        return historicalData
+    }
 }
 
 // MARK: - Modèle Firebase pour les objectifs
