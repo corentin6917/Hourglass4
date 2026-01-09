@@ -13,92 +13,178 @@ struct LoginView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                Text("Connexion")
-                    .font(.largeTitle)
-                    .bold()
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemGroupedBackground),
+                        Color.orange.opacity(0.05)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
-                VStack(alignment: .leading, spacing: 8) {
+                Circle()
+                    .fill(Color.orange.opacity(0.08))
+                    .frame(width: 260, height: 260)
+                    .offset(x: 140, y: -220)
+
+                Circle()
+                    .fill(Color.orange.opacity(0.05))
+                    .frame(width: 200, height: 200)
+                    .offset(x: -160, y: 260)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        headerSection
+                        formCard
+                        footerSection
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, 32)
+                }
+            }
+        }
+    }
+
+    private var headerSection: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "hourglass")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(.orange)
+
+            Text("Connexion")
+                .font(.custom("AvenirNext-Medium", size: 18))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
+    }
+
+    private var formCard: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "envelope")
+                        .foregroundStyle(.orange)
+
                     TextField("Email", text: $email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
                         .focused($focusedField, equals: .email)
-                        .padding(12)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .password }
+                }
+                .padding(14)
+                .background(fieldBackground)
 
-                    ZStack(alignment: .trailing) {
+                ZStack(alignment: .trailing) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "lock")
+                            .foregroundStyle(.orange)
+
                         Group {
                             if showPassword {
                                 TextField("Mot de passe", text: $password)
                                     .textContentType(.password)
-                                    .focused($focusedField, equals: .password)
                             } else {
                                 SecureField("Mot de passe", text: $password)
                                     .textContentType(.password)
-                                    .focused($focusedField, equals: .password)
                             }
                         }
-                        .padding(12)
-                        .padding(.trailing, 40)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .focused($focusedField, equals: .password)
+                        .submitLabel(.go)
+                        .onSubmit { signIn() }
+                    }
+                    .padding(14)
+                    .padding(.trailing, 36)
+                    .background(fieldBackground)
 
-                        Button(action: {
-                            showPassword.toggle()
-                        }) {
-                            Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.gray)
-                                .padding(.trailing, 12)
-                        }
+                    Button {
+                        showPassword.toggle()
+                    } label: {
+                        Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
+                            .foregroundStyle(.secondary)
+                            .padding(.trailing, 12)
                     }
                 }
+            }
 
-                if let errorMessage = errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 4)
-                } else if let infoMessage = infoMessage {
-                    Text(infoMessage)
-                        .foregroundStyle(.secondary)
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 4)
-                }
-
-                Button(action: signIn) {
+            Button(action: signIn) {
+                HStack {
+                    Spacer()
                     if isLoading {
                         ProgressView()
+                            .tint(.white)
                     } else {
                         Text("Se connecter")
-                            .frame(maxWidth: .infinity)
+                            .font(.custom("AvenirNext-DemiBold", size: 16))
                     }
+                    Spacer()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading || email.isEmpty || password.isEmpty)
-
-                Button("Mot de passe oublié ?") {
-                    resetPassword()
-                }
-                .disabled(isLoading || email.isEmpty)
-
-                HStack(spacing: 8) {
-                    Text("Pas de compte ?")
-                    NavigationLink("Créer un compte") {
-                        SignUpView()
-                    }
-                }
-                .font(.footnote)
-                .padding(.top, 4)
-
-                Spacer()
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: .orange.opacity(0.25), radius: 12, x: 0, y: 8)
             }
-            .padding()
+            .disabled(isLoading || email.isEmpty || password.isEmpty)
+
+            Button("Mot de passe oublié ?") {
+                resetPassword()
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .disabled(isLoading || email.isEmpty)
+
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+            } else if let infoMessage = infoMessage {
+                Text(infoMessage)
+                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+            }
         }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 18, x: 0, y: 10)
+        )
+    }
+
+    private var footerSection: some View {
+        HStack(spacing: 6) {
+            Text("Pas de compte ?")
+                .foregroundStyle(.secondary)
+            NavigationLink("Créer un compte") {
+                SignUpView()
+            }
+            .fontWeight(.semibold)
+        }
+        .font(.footnote)
+        .padding(.top, 4)
+    }
+
+    private var fieldBackground: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(Color(uiColor: .secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            }
     }
 
     private func signIn() {

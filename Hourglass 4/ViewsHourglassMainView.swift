@@ -495,7 +495,7 @@ struct LifeRatioCard: View {
     }
     
     private func daysOnApp(from joinDate: Date) -> Int {
-        Calendar.current.dateComponents([.day], from: joinDate, to: Date()).day ?? 0
+        AppTimeZone.calendar.dateComponents([.day], from: joinDate, to: Date()).day ?? 0
     }
 }
 

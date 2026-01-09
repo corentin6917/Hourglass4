@@ -189,6 +189,7 @@ struct VictoryCard: View {
 
     @State private var isBoosting = false
     @State private var showBoostError: String?
+    @State private var showPhoto = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -229,37 +230,42 @@ struct VictoryCard: View {
             }
 
             // Photo de l'accomplissement
-            AsyncImage(url: URL(string: victory.photoURL)) { phase in
-                switch phase {
-                case .empty:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 300)
-                        .overlay {
-                            ProgressView()
-                        }
+            Button {
+                showPhoto = true
+            } label: {
+                AsyncImage(url: URL(string: victory.photoURL)) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 300)
+                            .overlay {
+                                ProgressView()
+                            }
 
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 400)
-                        .cornerRadius(12)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 400)
+                            .cornerRadius(12)
 
-                case .failure:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 300)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                        }
+                    case .failure:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 300)
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(.secondary)
+                            }
 
-                @unknown default:
-                    EmptyView()
+                    @unknown default:
+                        EmptyView()
+                    }
                 }
             }
+            .buttonStyle(.plain)
 
             // Actions
             HStack(spacing: 20) {
@@ -307,6 +313,9 @@ struct VictoryCard: View {
                 .fill(Color(uiColor: .systemBackground))
                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         }
+        .sheet(isPresented: $showPhoto) {
+            VictoryPhotoView(photoURL: victory.photoURL, title: victory.goalTitle)
+        }
     }
 
     private func boostVictory() async {
@@ -320,6 +329,52 @@ struct VictoryCard: View {
         }
 
         isBoosting = false
+    }
+}
+
+struct VictoryPhotoView: View {
+    let photoURL: String
+    let title: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.opacity(0.95)
+                    .ignoresSafeArea()
+
+                AsyncImage(url: URL(string: photoURL)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .tint(.white)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .padding()
+                    case .failure:
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.white)
+                            Text("Impossible de charger la photo")
+                                .foregroundStyle(.white)
+                        }
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                        .foregroundStyle(.white)
+                }
+            }
+        }
     }
 }
 
@@ -423,11 +478,25 @@ struct VictoryDetailView: View {
 
 struct CommentRow: View {
     let comment: VictoryComment
+    @State private var currentUserImageURL: String?
+    @State private var isLoadingUser = false
+
+    private var resolvedImageURL: String? {
+        if let url = comment.profileImageURL, !url.isEmpty {
+            return url
+        }
+
+        if comment.userId == Auth.auth().currentUser?.uid {
+            return currentUserImageURL
+        }
+
+        return nil
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             ProfileImageView(
-                imageURL: comment.profileImageURL,
+                imageURL: resolvedImageURL,
                 username: comment.username,
                 size: 32,
                 gradientColors: [.blue, .blue.opacity(0.6)]
@@ -451,6 +520,43 @@ struct CommentRow: View {
                     .font(.body)
             }
         }
+        .task {
+            await loadCurrentUserIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .profileDidUpdate)) { _ in
+            Task {
+                await loadCurrentUserIfNeeded(forceRefresh: true)
+            }
+        }
+    }
+
+    private func loadCurrentUserIfNeeded(forceRefresh: Bool = false) async {
+        guard let currentUserId = Auth.auth().currentUser?.uid,
+              comment.userId == currentUserId
+        else { return }
+
+        if !forceRefresh, let cached = UserManager.shared.cachedUsers[currentUserId] {
+            await MainActor.run {
+                currentUserImageURL = cached.profileImageURL
+            }
+            return
+        }
+
+        if isLoadingUser { return }
+        await MainActor.run { isLoadingUser = true }
+
+        do {
+            if let data = try await UserManager.shared.getUserProfile(uid: currentUserId) {
+                await MainActor.run {
+                    UserManager.shared.cachedUsers[currentUserId] = data
+                    currentUserImageURL = data.profileImageURL
+                }
+            }
+        } catch {
+            // Pas bloquant : on garde le fallback sur l'initiale
+        }
+
+        await MainActor.run { isLoadingUser = false }
     }
 }
 

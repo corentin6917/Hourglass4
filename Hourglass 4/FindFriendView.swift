@@ -18,11 +18,6 @@ struct FindFriendView: View {
                     // Barre de recherche
                     searchBar
 
-                    // Section Demandes reçues
-                    pendingRequestsSection
-
-                    Divider()
-
                     // Résultat de recherche
                     if viewModel.isSearching {
                         ProgressView()
@@ -57,18 +52,6 @@ struct FindFriendView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        Task { await viewModel.loadPendingRequests() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-            }
-            .onAppear {
-                Task {
-                    await viewModel.loadPendingRequests()
                 }
             }
         }
@@ -105,54 +88,6 @@ struct FindFriendView: View {
                 .fill(Color(.secondarySystemBackground))
         }
         .padding()
-    }
-
-    // MARK: - Pending Requests Section
-
-    private var pendingRequestsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "bell.badge.fill")
-                    .foregroundStyle(.red)
-                Text("Demandes reçues (\(viewModel.pendingRequests.count))")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    Task { await viewModel.loadPendingRequests() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal)
-
-            if viewModel.isLoading {
-                ProgressView()
-                    .padding(.horizontal)
-            } else if viewModel.pendingRequests.isEmpty {
-                Text("Aucune demande en attente")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(viewModel.pendingRequests, id: \.id) { request in
-                        PendingRequestCardView(request: request) { action in
-                            Task {
-                                switch action {
-                                case .accept:
-                                    await viewModel.acceptRequest(request)
-                                case .reject:
-                                    await viewModel.rejectRequest(request)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
-        .padding(.vertical, 8)
     }
 
     // MARK: - User Result Card

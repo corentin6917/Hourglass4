@@ -72,6 +72,7 @@ final class NotificationManager {
         var dateComponents = DateComponents()
         dateComponents.hour = 8
         dateComponents.minute = 0
+        dateComponents.timeZone = AppTimeZone.current
         
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
         let request = UNNotificationRequest(
@@ -94,6 +95,7 @@ final class NotificationManager {
         var dateComponents = DateComponents()
         dateComponents.hour = 21
         dateComponents.minute = 0
+        dateComponents.timeZone = AppTimeZone.current
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
         let request = UNNotificationRequest(

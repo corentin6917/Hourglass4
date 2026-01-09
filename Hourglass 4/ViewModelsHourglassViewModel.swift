@@ -62,7 +62,7 @@ final class HourglassViewModel: ObservableObject {
         todayGoals = profile.todaysPendingGoals() + profile.todaysCompletedGoals()
         
         // Charger les grains du jour
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let today = calendar.startOfDay(for: Date())
         
         currentDayGrains = profile.grains.filter { grain in
@@ -280,7 +280,7 @@ final class HourglassViewModel: ObservableObject {
     // MARK: - Helpers
     
     func currentTimeSlot() -> TimeSlot {
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = AppTimeZone.calendar.component(.hour, from: Date())
         
         if hour >= morningResetHour && hour < eveningValidationHour {
             return .daytime

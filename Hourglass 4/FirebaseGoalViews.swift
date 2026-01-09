@@ -19,7 +19,12 @@ struct FirebaseCreateGoalView: View {
     @State private var title = ""
     @State private var description = ""
     @State private var selectedCategory: GoalCategory = .personal
-    @State private var estimatedGrains = 3.0
+    @State private var selectedEffort: GoalEffort = .medium
+    @State private var suggestedGrains = 2.5
+    @State private var adjustment: Double = 0.0
+    @State private var recentCount = 0
+    @State private var isEstimating = false
+    @State private var estimateTask: Task<Void, Never>?
     @State private var isCreating = false
 
     // Exemples suggérés par catégorie
@@ -138,11 +143,14 @@ struct FirebaseCreateGoalView: View {
 
                                     Spacer()
 
-                                    Button("Personnaliser") {
-                                        // Option pour ajuster manuellement
+                                    if isEstimating {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                                    } else if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text("\(recentCount)x / 30j")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.black.opacity(0.5))
                                     }
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.black)
                                 }
 
                                 HStack(spacing: 8) {
@@ -150,12 +158,54 @@ struct FirebaseCreateGoalView: View {
                                         .font(.system(size: 20))
                                         .foregroundStyle(.orange)
 
-                                    Text(String(format: "%.1f", estimatedGrains))
+                                    Text(String(format: "%.1f", finalGrains))
                                         .font(.system(size: 32, weight: .bold))
                                         .foregroundStyle(.orange)
 
                                     Text("grains")
                                         .font(.system(size: 16))
+                                        .foregroundStyle(.black.opacity(0.6))
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Effort perçu")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.black.opacity(0.6))
+
+                                    HStack(spacing: 8) {
+                                        ForEach(GoalEffort.allCases, id: \.self) { effort in
+                                            Button {
+                                                selectedEffort = effort
+                                                updateSuggestion()
+                                            } label: {
+                                                Text(effort.displayName)
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                    .foregroundStyle(selectedEffort == effort ? .white : .black)
+                                                    .padding(.horizontal, 12)
+                                                    .padding(.vertical, 8)
+                                                    .background(
+                                                        Capsule()
+                                                            .fill(selectedEffort == effort ? Color.orange : Color.white)
+                                                            .overlay(
+                                                                Capsule()
+                                                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                                            )
+                                                    )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Ajustement (±1 grain)")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.black.opacity(0.6))
+
+                                    Slider(value: $adjustment, in: -1...1, step: 0.5)
+                                        .tint(.orange)
+
+                                    Text("Final: \(String(format: "%.1f", finalGrains)) grains")
+                                        .font(.system(size: 12))
                                         .foregroundStyle(.black.opacity(0.6))
                                 }
                             }
@@ -238,6 +288,15 @@ struct FirebaseCreateGoalView: View {
                     }
                 }
             }
+            .onAppear {
+                updateSuggestion()
+            }
+            .onChange(of: title) { _, _ in
+                recalcSuggestion()
+            }
+            .onChange(of: selectedCategory) { _, _ in
+                updateSuggestion()
+            }
         }
     }
 
@@ -249,7 +308,7 @@ struct FirebaseCreateGoalView: View {
                 title: title,
                 description: description.isEmpty ? nil : description,
                 category: selectedCategory,
-                baseValue: estimatedGrains
+                baseValue: finalGrains
             )
 
             await MainActor.run {
@@ -258,6 +317,98 @@ struct FirebaseCreateGoalView: View {
         } catch {
             print("Erreur de création: \(error.localizedDescription)")
             isCreating = false
+        }
+    }
+
+    private var finalGrains: Double {
+        let value = roundToHalf(suggestedGrains + adjustment)
+        return min(10.0, max(0.5, value))
+    }
+
+    private func recalcSuggestion() {
+        estimateTask?.cancel()
+
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count >= 3 else {
+            recentCount = 0
+            updateSuggestion()
+            return
+        }
+
+        isEstimating = true
+        estimateTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if Task.isCancelled { return }
+
+            let count = await goalManager.countRecentGoals(matching: normalized, withinDays: 30)
+            if Task.isCancelled { return }
+
+            await MainActor.run {
+                recentCount = count
+                isEstimating = false
+                updateSuggestion()
+            }
+        }
+    }
+
+    private func updateSuggestion() {
+        let base = GoalSuggestionEngine.calculateGrainValue(
+            for: title,
+            category: selectedCategory,
+            estimatedDuration: nil,
+            difficulty: selectedEffort.difficulty
+        )
+        let multiplier = rarityMultiplier(for: recentCount)
+        suggestedGrains = roundToHalf(base * multiplier)
+        adjustment = min(1, max(-1, adjustment))
+    }
+
+    private func rarityMultiplier(for count: Int) -> Double {
+        switch count {
+        case 0:
+            return 1.25
+        case 1...2:
+            return 1.15
+        case 3...5:
+            return 1.0
+        case 6...10:
+            return 0.9
+        case 11...20:
+            return 0.8
+        default:
+            return 0.7
+        }
+    }
+
+    private func roundToHalf(_ value: Double) -> Double {
+        round(value * 2) / 2
+    }
+}
+
+enum GoalEffort: String, CaseIterable {
+    case light
+    case medium
+    case intense
+
+    var displayName: String {
+        switch self {
+        case .light:
+            return "Léger"
+        case .medium:
+            return "Moyen"
+        case .intense:
+            return "Intense"
+        }
+    }
+
+    var difficulty: Difficulty {
+        switch self {
+        case .light:
+            return .easy
+        case .medium:
+            return .medium
+        case .intense:
+            return .hard
         }
     }
 }

@@ -16,7 +16,8 @@ struct FriendProfileView: View {
     @State private var transferSuccess = false
 
     var displayName: String {
-        friend.displayName ?? friend.username
+        let name = friend.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (name?.isEmpty == false) ? name! : friend.username
     }
 
     var profileColor: Color {
@@ -26,13 +27,11 @@ struct FriendProfileView: View {
     }
 
     var friendSince: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .long
-        return formatter.string(from: friend.createdAt)
+        AppTimeZone.formatDate(friend.createdAt, style: .long)
     }
 
     var ageText: String {
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let now = Date()
         let ageComponents = calendar.dateComponents([.year], from: friend.birthDate, to: now)
         if let age = ageComponents.year {

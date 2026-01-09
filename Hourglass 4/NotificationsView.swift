@@ -45,7 +45,7 @@ struct NotificationsView: View {
                     contentList
                 }
             }
-            .navigationTitle("Notifications")
+            .navigationTitle("Messages")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -76,11 +76,11 @@ struct NotificationsView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bell.slash.fill")
+            Image(systemName: "message.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
 
-            Text("Aucune notification")
+            Text("Aucun message")
                 .font(.headline)
 
             Text("Vous recevrez ici les messages et transfusions de grains de vos amis")

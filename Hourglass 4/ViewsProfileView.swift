@@ -18,7 +18,7 @@ struct ProfileView: View {
     @State private var showFindFriends = false
     @State private var showMessages = false
     @State private var unreadMessagesCount = 0
-    @State private var showDeleteConfirmation = false
+    @State private var showSettings = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -29,18 +29,6 @@ struct ProfileView: View {
 
                     FriendsSection(showFindFriends: $showFindFriends)
 
-                    SettingsSection()
-
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = true
-                    } label: {
-                        Text("Supprimer mon compte")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.red)
-                    }
-                    .padding(.top, 4)
-
                     Spacer(minLength: 24)
                 }
                 .padding(.horizontal)
@@ -50,14 +38,24 @@ struct ProfileView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 // Bouton Messages avec badge
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showMessages = true
                     } label: {
                         ZStack(alignment: .topTrailing) {
-                            Image(systemName: "envelope.fill")
-                                .foregroundStyle(.purple)
+                            Image(systemName: "message.fill")
+                                .foregroundStyle(.orange)
 
                             if unreadMessagesCount > 0 {
                                 Text("\(unreadMessagesCount)")
@@ -94,11 +92,8 @@ struct ProfileView: View {
             .sheet(isPresented: $showMessages) {
                 NotificationsView(viewModel: viewModel)
             }
-            .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
-                Button("Annuler", role: .cancel) {}
-                Button("Supprimer", role: .destructive) {}
-            } message: {
-                Text("Cette action est irréversible.")
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
             .onAppear {
                 Task {
@@ -130,7 +125,15 @@ struct MainProfileCard: View {
     }
 
     var displayName: String {
-        userData?.displayName ?? Auth.auth().currentUser?.displayName ?? "Utilisateur"
+        let name = userData?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name, !name.isEmpty {
+            return name
+        }
+        let authName = Auth.auth().currentUser?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let authName, !authName.isEmpty {
+            return authName
+        }
+        return "Utilisateur"
     }
 
     var email: String {
@@ -262,6 +265,9 @@ struct MainProfileCard: View {
             loadUserData()
             loadFriendsCount()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .profileDidUpdate)) { _ in
+            loadUserData()
+        }
         .sheet(isPresented: $showShareOptions) {
             ShareProfileView(shareText: generateShareText())
         }
@@ -325,9 +331,7 @@ struct MainProfileCard: View {
         text += "✨ @\(username)\n"
 
         if let birthDate = userData?.birthDate {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            text += "🎂 Né(e) le \(formatter.string(from: birthDate))\n"
+            text += "🎂 Né(e) le \(AppTimeZone.formatDate(birthDate, style: .medium))\n"
         }
 
         text += "\n⏳ Télécharge l'app Hourglass 4 pour me suivre !"
@@ -390,6 +394,8 @@ struct FriendsSection: View {
     @State private var isLoading = true
     @State private var errorText: String?
     @State private var isExpanded = false
+    @State private var pendingRequests: [FriendRequest] = []
+    @State private var isLoadingRequests = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -464,6 +470,55 @@ struct FriendsSection: View {
                     .padding()
                 }
                 .buttonStyle(.plain)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        SettingsIcon(symbol: "person.badge.plus", color: .orange)
+                        Text("Demandes reçues")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        if pendingRequests.count > 0 {
+                            Text("\(pendingRequests.count)")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background {
+                                    Capsule()
+                                        .fill(Color.orange.opacity(0.15))
+                                }
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    if isLoadingRequests {
+                        ProgressView()
+                            .padding(.horizontal)
+                    } else if pendingRequests.isEmpty {
+                        Text("Aucune demande en attente")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(pendingRequests) { request in
+                                PendingRequestCard(request: request) {
+                                    loadPendingRequests()
+                                    loadFriends()
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
+                    }
+                }
             }
         }
         .padding()
@@ -474,6 +529,12 @@ struct FriendsSection: View {
         }
         .onAppear {
             loadFriends()
+            loadPendingRequests()
+        }
+        .onChange(of: isExpanded) { _, newValue in
+            if newValue {
+                loadPendingRequests()
+            }
         }
     }
 
@@ -510,6 +571,25 @@ struct FriendsSection: View {
             }
         }
     }
+
+    private func loadPendingRequests() {
+        isLoadingRequests = true
+
+        Task {
+            do {
+                let requests = try await FriendManager.shared.getPendingFriendRequests()
+                await MainActor.run {
+                    pendingRequests = requests
+                    isLoadingRequests = false
+                }
+            } catch {
+                await MainActor.run {
+                    isLoadingRequests = false
+                }
+                print("Erreur chargement demandes: \(error.localizedDescription)")
+            }
+        }
+    }
 }
 
 struct RealFriendCard: View {
@@ -519,13 +599,12 @@ struct RealFriendCard: View {
     @State private var showFriendProfile = false
 
     var displayName: String {
-        friend.displayName ?? friend.username
+        let name = friend.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (name?.isEmpty == false) ? name! : friend.username
     }
 
     var friendSince: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter.string(from: friend.createdAt)
+        AppTimeZone.formatDate(friend.createdAt, style: .short)
     }
 
     var profileColor: Color {
@@ -617,159 +696,6 @@ struct RealFriendCard: View {
     }
 }
 
-struct SettingsSection: View {
-    @State private var showTutorial = false
-    @State private var showLogoutConfirmation = false
-    @AppStorage("settings.notificationsEnabled") private var notificationsEnabled = true
-    @AppStorage("settings.soundsEnabled") private var soundsEnabled = true
-    @AppStorage("settings.calmModeEnabled") private var calmModeEnabled = false
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        VStack(spacing: 14) {
-            VStack(spacing: 0) {
-                SettingsRow(
-                    symbol: "bell.fill",
-                    color: .orange,
-                    title: "Notifications",
-                    subtitle: notificationsEnabled ? "Activées" : "Désactivées"
-                ) {
-                    Toggle("", isOn: $notificationsEnabled)
-                        .labelsHidden()
-                }
-
-                Divider()
-
-                SettingsRow(
-                    symbol: "speaker.wave.2.fill",
-                    color: .green,
-                    title: "Sons",
-                    subtitle: soundsEnabled ? "Activés" : "Désactivés"
-                ) {
-                    Toggle("", isOn: $soundsEnabled)
-                        .labelsHidden()
-                }
-
-                Divider()
-
-                SettingsRow(
-                    symbol: "moon.fill",
-                    color: .purple,
-                    title: "Mode calme",
-                    subtitle: calmModeEnabled ? "Activé" : "Désactivé"
-                ) {
-                    Toggle("", isOn: $calmModeEnabled)
-                        .labelsHidden()
-                }
-            }
-            .background {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(uiColor: .systemBackground))
-                    .shadow(color: .black.opacity(0.05), radius: 10)
-            }
-
-            VStack(spacing: 0) {
-                Button { showTutorial = true } label: {
-                    SettingsRow(
-                        symbol: "arrow.counterclockwise",
-                        color: .purple,
-                        title: "Revoir le tutoriel",
-                        subtitle: nil
-                    ) {
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                Button { showLogoutConfirmation = true } label: {
-                    SettingsRow(
-                        symbol: "rectangle.portrait.and.arrow.right",
-                        color: .gray,
-                        title: "Déconnexion",
-                        subtitle: nil
-                    ) {
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            .background {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(uiColor: .systemBackground))
-                    .shadow(color: .black.opacity(0.05), radius: 10)
-            }
-        }
-        .alert("Revoir le tutoriel", isPresented: $showTutorial) {
-            Button("OK", role: .cancel) { }
-        }
-        .alert("Déconnexion", isPresented: $showLogoutConfirmation) {
-            Button("Annuler", role: .cancel) { }
-            Button("Déconnexion", role: .destructive) {
-                do {
-                    try Auth.auth().signOut()
-                    dismiss()
-                } catch {
-                    print("Erreur de déconnexion: \(error)")
-                }
-            }
-        }
-        .onChange(of: notificationsEnabled) { _, newValue in
-            handleNotificationsToggle(newValue)
-        }
-        .onChange(of: soundsEnabled) { _, _ in
-            rescheduleNotificationsIfNeeded()
-        }
-        .onChange(of: calmModeEnabled) { _, _ in
-            rescheduleNotificationsIfNeeded()
-        }
-    }
-
-    private func handleNotificationsToggle(_ enabled: Bool) {
-        Task {
-            if enabled {
-                do {
-                    let authorized = try await NotificationManager.shared.requestAuthorization()
-                    if authorized {
-                        try await NotificationManager.shared.scheduleDailyNotifications()
-                    } else {
-                        await MainActor.run {
-                            notificationsEnabled = false
-                        }
-                    }
-                } catch {
-                    print("Erreur lors de l'activation des notifications: \(error)")
-                    await MainActor.run {
-                        notificationsEnabled = false
-                    }
-                }
-            } else {
-                let center = UNUserNotificationCenter.current()
-                center.removeAllPendingNotificationRequests()
-                center.removeAllDeliveredNotifications()
-            }
-        }
-    }
-
-    private func rescheduleNotificationsIfNeeded() {
-        guard notificationsEnabled else { return }
-
-        Task {
-            do {
-                let authorized = try await NotificationManager.shared.requestAuthorization()
-                if authorized {
-                    try await NotificationManager.shared.scheduleDailyNotifications()
-                }
-            } catch {
-                print("Erreur lors de la mise à jour des notifications: \(error)")
-            }
-        }
-    }
-}
-
 struct SettingsRow<Trailing: View>: View {
     let symbol: String
     let color: Color
@@ -828,6 +754,576 @@ struct SettingsIcon: View {
                     .foregroundStyle(color)
             }
     }
+}
+
+// MARK: - Settings View
+
+struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("settings.notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("settings.soundsEnabled") private var soundsEnabled = true
+    @AppStorage("settings.calmModeEnabled") private var calmModeEnabled = false
+    @AppStorage("settings.timezoneIdentifier") private var timezoneIdentifier = TimeZone.current.identifier
+
+    @State private var showShareSheet = false
+    @State private var showHelp = false
+    @State private var showAbout = false
+    @State private var showTimezonePicker = false
+    @State private var showTutorial = false
+    @State private var showLogoutConfirmation = false
+    @State private var showDeleteConfirmation = false
+    @State private var isPublic = true
+    @State private var isLoadingProfile = false
+
+    private var timezoneLabel: String {
+        let tz = TimeZone(identifier: timezoneIdentifier) ?? .current
+        return tz.localizedName(for: .standard, locale: Locale(identifier: "fr_FR")) ?? tz.identifier
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        SettingsProfileHeader()
+                            .padding(.horizontal, 20)
+
+                        VStack(spacing: 0) {
+                            SettingsRow(
+                                symbol: "eye.fill",
+                                color: .orange,
+                                title: "Profil public",
+                                subtitle: isPublic ? "Visible" : "Privé"
+                            ) {
+                                if isLoadingProfile {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Toggle("", isOn: $isPublic)
+                                        .labelsHidden()
+                                }
+                            }
+
+                            Divider()
+
+                            SettingsRow(
+                                symbol: "bell.fill",
+                                color: .orange,
+                                title: "Notifications",
+                                subtitle: notificationsEnabled ? "Activées" : "Désactivées"
+                            ) {
+                                Toggle("", isOn: $notificationsEnabled)
+                                    .labelsHidden()
+                            }
+
+                            Divider()
+
+                            SettingsRow(
+                                symbol: "speaker.wave.2.fill",
+                                color: .green,
+                                title: "Sons",
+                                subtitle: soundsEnabled ? "Activés" : "Désactivés"
+                            ) {
+                                Toggle("", isOn: $soundsEnabled)
+                                    .labelsHidden()
+                            }
+
+                            Divider()
+
+                            SettingsRow(
+                                symbol: "moon.fill",
+                                color: .purple,
+                                title: "Mode calme",
+                                subtitle: calmModeEnabled ? "Activé" : "Désactivé"
+                            ) {
+                                Toggle("", isOn: $calmModeEnabled)
+                                    .labelsHidden()
+                            }
+                        }
+                        .background {
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color(uiColor: .systemBackground))
+                                .shadow(color: .black.opacity(0.05), radius: 10)
+                        }
+                        .padding(.horizontal, 20)
+
+                        VStack(spacing: 0) {
+                            Button {
+                                showTimezonePicker = true
+                            } label: {
+                                SettingsRow(
+                                    symbol: "globe.europe.africa.fill",
+                                    color: .blue,
+                                    title: "Fuseau horaire",
+                                    subtitle: timezoneLabel
+                                ) {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+
+                            Button {
+                                showShareSheet = true
+                            } label: {
+                                SettingsRow(
+                                    symbol: "square.and.arrow.up",
+                                    color: .orange,
+                                    title: "Partager Hourglass",
+                                    subtitle: nil
+                                ) {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+
+                            Button {
+                                showHelp = true
+                            } label: {
+                                SettingsRow(
+                                    symbol: "questionmark.circle.fill",
+                                    color: .gray,
+                                    title: "Aide",
+                                    subtitle: nil
+                                ) {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+
+                            Button {
+                                showTutorial = true
+                            } label: {
+                                SettingsRow(
+                                    symbol: "arrow.counterclockwise",
+                                    color: .purple,
+                                    title: "Revoir le tutoriel",
+                                    subtitle: nil
+                                ) {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+
+                            Button {
+                                showAbout = true
+                            } label: {
+                                SettingsRow(
+                                    symbol: "info.circle.fill",
+                                    color: .gray,
+                                    title: "À propos",
+                                    subtitle: nil
+                                ) {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .background {
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color(uiColor: .systemBackground))
+                                .shadow(color: .black.opacity(0.05), radius: 10)
+                        }
+                        .padding(.horizontal, 20)
+
+                        Button(role: .destructive) {
+                            showLogoutConfirmation = true
+                        } label: {
+                            Text("Se déconnecter")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color(uiColor: .systemBackground))
+                                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+                                }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Text("Supprimer mon compte")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color(uiColor: .systemBackground))
+                                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+                                }
+                        }
+                        .padding(.horizontal, 20)
+
+                        Text(appVersionText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 20)
+                    }
+                    .padding(.top, 12)
+                }
+            }
+            .navigationTitle("Réglages")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showShareSheet) {
+                ShareSheet(activityItems: [shareText])
+            }
+            .sheet(isPresented: $showTimezonePicker) {
+                TimezonePickerView(selectedIdentifier: $timezoneIdentifier)
+            }
+            .sheet(isPresented: $showHelp) {
+                SettingsHelpView()
+            }
+            .sheet(isPresented: $showAbout) {
+                SettingsAboutView()
+            }
+            .alert("Déconnexion", isPresented: $showLogoutConfirmation) {
+                Button("Annuler", role: .cancel) {}
+                Button("Déconnexion", role: .destructive) {
+                    do {
+                        try Auth.auth().signOut()
+                        dismiss()
+                    } catch {
+                        print("Erreur de déconnexion: \(error)")
+                    }
+                }
+            }
+            .alert("Revoir le tutoriel", isPresented: $showTutorial) {
+                Button("OK", role: .cancel) { }
+            }
+            .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
+                Button("Annuler", role: .cancel) {}
+                Button("Supprimer", role: .destructive) {}
+            } message: {
+                Text("Cette action est irréversible.")
+            }
+            .onAppear {
+                guard let currentUser = Auth.auth().currentUser else { return }
+                isLoadingProfile = true
+                Task {
+                    do {
+                        let data = try await UserManager.shared.getUserProfile(uid: currentUser.uid)
+                        await MainActor.run {
+                            isPublic = data?.isPublic ?? true
+                            isLoadingProfile = false
+                        }
+                    } catch {
+                        await MainActor.run {
+                            isLoadingProfile = false
+                        }
+                        print("Erreur chargement visibilité profil: \(error.localizedDescription)")
+                    }
+                }
+            }
+            .onChange(of: isPublic) { _, _ in
+                guard let currentUser = Auth.auth().currentUser else { return }
+                Task {
+                    do {
+                        try await Firestore.firestore().collection("users").document(currentUser.uid).updateData([
+                            "isPublic": isPublic
+                        ])
+                        NotificationCenter.default.post(name: .profileDidUpdate, object: nil)
+                    } catch {
+                        print("Erreur mise à jour visibilité profil: \(error.localizedDescription)")
+                    }
+                }
+            }
+            .onChange(of: notificationsEnabled) { _, newValue in
+                handleNotificationsToggle(newValue)
+            }
+            .onChange(of: soundsEnabled) { _, _ in
+                rescheduleNotificationsIfNeeded()
+            }
+            .onChange(of: calmModeEnabled) { _, _ in
+                rescheduleNotificationsIfNeeded()
+            }
+            .onChange(of: timezoneIdentifier) { _, _ in
+                rescheduleNotificationsIfNeeded()
+            }
+        }
+    }
+
+    private var shareText: String {
+        "Rejoins-moi sur Hourglass ⏳"
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "Version \(version) (\(build))"
+    }
+
+    private func handleNotificationsToggle(_ enabled: Bool) {
+        Task {
+            if enabled {
+                do {
+                    let authorized = try await NotificationManager.shared.requestAuthorization()
+                    if authorized {
+                        try await NotificationManager.shared.scheduleDailyNotifications()
+                    } else {
+                        await MainActor.run {
+                            notificationsEnabled = false
+                        }
+                    }
+                } catch {
+                    print("Erreur lors de l'activation des notifications: \(error)")
+                    await MainActor.run {
+                        notificationsEnabled = false
+                    }
+                }
+            } else {
+                let center = UNUserNotificationCenter.current()
+                center.removeAllPendingNotificationRequests()
+                center.removeAllDeliveredNotifications()
+            }
+        }
+    }
+
+    private func rescheduleNotificationsIfNeeded() {
+        guard notificationsEnabled else { return }
+
+        Task {
+            do {
+                let authorized = try await NotificationManager.shared.requestAuthorization()
+                if authorized {
+                    try await NotificationManager.shared.scheduleDailyNotifications()
+                }
+            } catch {
+                print("Erreur lors de la mise à jour des notifications: \(error)")
+            }
+        }
+    }
+
+    
+}
+
+struct SettingsProfileHeader: View {
+    @State private var userData: UserData? = nil
+    @State private var isLoading = true
+
+    var body: some View {
+        HStack(spacing: 14) {
+            if isLoading {
+                Circle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 54, height: 54)
+                    .overlay {
+                        ProgressView()
+                    }
+            } else {
+                ProfileImageView(
+                    imageURL: userData?.profileImageURL,
+                    username: userData?.username ?? "U",
+                    size: 54,
+                    gradientColors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)]
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(displayName)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text("@\(userData?.username ?? "utilisateur")")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+        }
+        .onAppear {
+            loadUserData()
+        }
+    }
+
+    private func loadUserData() {
+        guard let currentUser = Auth.auth().currentUser else {
+            isLoading = false
+            return
+        }
+
+        Task {
+            do {
+                let data = try await UserManager.shared.getUserProfile(uid: currentUser.uid)
+                await MainActor.run {
+                    userData = data
+                    isLoading = false
+                }
+            } catch {
+                print("Erreur lors du chargement du profil: \(error.localizedDescription)")
+                await MainActor.run {
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    private var displayName: String {
+        let name = userData?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (name?.isEmpty == false) ? name! : "Utilisateur"
+    }
+}
+
+struct TimezonePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedIdentifier: String
+    @State private var searchText = ""
+
+    private var filteredTimezones: [String] {
+        let all = TimeZone.knownTimeZoneIdentifiers
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return all
+        }
+
+        let query = searchText.lowercased()
+        return all.filter { identifier in
+            identifier.lowercased().contains(query) ||
+            (TimeZone(identifier: identifier)?.localizedName(for: .standard, locale: Locale(identifier: "fr_FR"))?.lowercased().contains(query) ?? false)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(filteredTimezones, id: \.self) { identifier in
+                    Button {
+                        selectedIdentifier = identifier
+                        dismiss()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(TimeZone(identifier: identifier)?.localizedName(for: .standard, locale: Locale(identifier: "fr_FR")) ?? identifier)
+                                    .foregroundStyle(.primary)
+                                Text(identifier)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if identifier == selectedIdentifier {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $searchText, prompt: "Rechercher un fuseau horaire")
+            .navigationTitle("Fuseau horaire")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct SettingsHelpView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Besoin d'aide ?")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text("Écris-nous si tu as une question ou un souci avec Hourglass.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Aide")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct SettingsAboutView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                Text("Hourglass")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text("L'app qui transforme tes journées en grains de vie.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("À propos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+extension Notification.Name {
+    static let profileDidUpdate = Notification.Name("profileDidUpdate")
 }
 
 struct EditProfileView: View {
@@ -1283,20 +1779,18 @@ struct PendingRequestCard: View {
     @State private var isProcessing = false
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Avatar
+        HStack(spacing: 12) {
             Circle()
                 .fill(LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 60, height: 60)
+                .frame(width: 44, height: 44)
                 .overlay {
                     Text(request.fromUsername.prefix(1).uppercased())
-                        .font(.title2)
+                        .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundStyle(.white)
                 }
 
-            // Infos
-            VStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
                 if let displayName = request.fromDisplayName, !displayName.isEmpty {
                     Text(displayName)
                         .font(.subheadline)
@@ -1305,46 +1799,52 @@ struct PendingRequestCard: View {
                 }
                 Text("@\(request.fromUsername)")
                     .font(.caption)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
-            // Boutons
+            Spacer()
+
             if isProcessing {
                 ProgressView()
                     .scaleEffect(0.8)
             } else {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Button {
                         acceptRequest()
                     } label: {
-                        Image(systemName: "checkmark")
+                        Text("Accepter")
                             .font(.caption)
+                            .fontWeight(.semibold)
                             .foregroundStyle(.white)
-                            .frame(width: 32, height: 32)
-                            .background(Color.green)
-                            .clipShape(Circle())
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background {
+                                Capsule()
+                                    .fill(Color.green)
+                            }
                     }
 
                     Button {
                         rejectRequest()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .frame(width: 32, height: 32)
-                            .background(Color.red)
-                            .clipShape(Circle())
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .frame(width: 26, height: 26)
+                            .background {
+                                Circle()
+                                    .fill(Color.red.opacity(0.12))
+                            }
                     }
                 }
             }
         }
-        .frame(width: 150)
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 5)
+                .fill(Color(uiColor: .secondarySystemBackground))
         }
     }
 

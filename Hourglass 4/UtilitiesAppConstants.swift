@@ -277,7 +277,7 @@ enum HourglassError: Error, LocalizedError {
 extension Date {
     /// Retourne vrai si la date est aujourd'hui
     var isToday: Bool {
-        Calendar.current.isDateInToday(self)
+        AppTimeZone.calendar.isDateInToday(self)
     }
     
     /// Retourne vrai si la date est dans le passé
@@ -287,7 +287,7 @@ extension Date {
     
     /// Retourne le début de la journée
     var startOfDay: Date {
-        Calendar.current.startOfDay(for: self)
+        AppTimeZone.calendar.startOfDay(for: self)
     }
     
     /// Retourne la fin de la journée
@@ -295,7 +295,7 @@ extension Date {
         var components = DateComponents()
         components.day = 1
         components.second = -1
-        return Calendar.current.date(byAdding: components, to: startOfDay) ?? self
+        return AppTimeZone.calendar.date(byAdding: components, to: startOfDay) ?? self
     }
 }
 

@@ -59,7 +59,7 @@ final class UserProfile {
     
     /// Calcule le ratio de vie
     func lifeRatio() -> Double {
-        let daysOnApp = Calendar.current.dateComponents([.day], from: joinDate, to: Date()).day ?? 0
+        let daysOnApp = AppTimeZone.calendar.dateComponents([.day], from: joinDate, to: Date()).day ?? 0
         guard daysOnApp > 0 else { return 0 }
         
         let maxPossibleGrains = Double(daysOnApp) * 10.0
@@ -83,7 +83,7 @@ final class UserProfile {
     
     /// Grains gagnés aujourd'hui
     func grainsEarnedToday() -> Double {
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let today = calendar.startOfDay(for: Date())
         
         return grains
@@ -97,7 +97,7 @@ final class UserProfile {
     
     /// Objectifs en attente aujourd'hui
     func todaysPendingGoals() -> [Goal] {
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let today = calendar.startOfDay(for: Date())
         
         return goals.filter { goal in
@@ -108,7 +108,7 @@ final class UserProfile {
     
     /// Objectifs complétés aujourd'hui
     func todaysCompletedGoals() -> [Goal] {
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let today = calendar.startOfDay(for: Date())
         
         return goals.filter { goal in
@@ -120,7 +120,7 @@ final class UserProfile {
     /// Vérifier si l'utilisateur doit entrer en mode Phénix
     func shouldEnterPhoenixMode() -> Bool {
         // Critère 1 : < 3 grains/jour pendant 14 jours
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let twoWeeksAgo = calendar.date(byAdding: .day, value: -14, to: Date())!
         
         let recentGrains = grains

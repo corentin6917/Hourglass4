@@ -32,7 +32,7 @@ struct HourglassView: View {
     var daysLived: Int {
         // Jours vécus dans la saison
         guard let profile = viewModel?.userProfile else { return 29 }
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let days = calendar.dateComponents([.day], from: profile.seasonStartDate, to: Date()).day ?? 0
         return days
     }
@@ -74,152 +74,20 @@ struct HourglassView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Titre "TON SABLIER"
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "hourglass")
-                                .font(.system(size: 32))
-                                .foregroundStyle(.orange)
-                            
-                            Text("TON SABLIER")
-                                .font(.system(size: 34, weight: .bold))
-                        }
-                        
-                        Text("Ton héritage et ton ratio de vie")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                    .padding(.top, 20)
-                    .padding(.bottom, 24)
-                    
-                    // Carte RATIO DE VIE
-                    VStack(alignment: .leading, spacing: 20) {
-                        HStack {
-                            HStack(spacing: 8) {
-                                Image(systemName: "arrow.up.right")
-                                    .font(.title3)
-                                
-                                Text("RATIO DE VIE")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                            }
-                            .foregroundStyle(ratioColor)
-                            
-                            Spacer()
-                            
-                            Button {
-                                showRatioInfo = true
-                            } label: {
-                                Image(systemName: "info.circle")
-                                    .font(.title3)
-                                    .foregroundStyle(.gray)
-                            }
-                        }
-                        
-                        Text(String(format: "%.0f%%", lifeRatio * 100))
-                            .font(.system(size: 80, weight: .bold))
-                            .foregroundStyle(ratioColor)
-                            .frame(maxWidth: .infinity)
-                        
-                        // Barre de progression
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.gray.opacity(0.3))
-                                
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(ratioColor)
-                                    .frame(width: geometry.size.width * lifeRatio)
-                            }
-                        }
-                        .frame(height: 20)
-                        
-                        Text(ratioMessage)
-                            .font(.headline)
-                            .foregroundStyle(ratioColor)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    .padding(24)
-                    .background {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(ratioColor.opacity(0.1))
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 24)
-                    
-                    // Grille de 4 cartes (2x2)
-                    LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 16),
-                        GridItem(.flexible(), spacing: 16)
-                    ], spacing: 16) {
-                        // Carte Héritage (beige/jaune)
-                        StatCardView(
-                            icon: "sparkles",
-                            title: "Héritage",
-                            value: String(format: "%.1f", totalHeritage),
-                            subtitle: "grains",
-                            backgroundColor: Color(red: 1.0, green: 0.95, blue: 0.85),
-                            foregroundColor: Color(red: 0.8, green: 0.5, blue: 0.2),
-                            onInfoTapped: { showHeritageInfo = true }
-                        )
-                        
-                        // Carte Jours (bleu)
-                        StatCardView(
-                            icon: "calendar",
-                            title: "Jours",
-                            value: "\(daysLived)",
-                            subtitle: "vécus",
-                            backgroundColor: Color(red: 0.9, green: 0.95, blue: 1.0),
-                            foregroundColor: Color.blue,
-                            onInfoTapped: { showDaysInfo = true }
-                        )
-                        
-                        // Carte Dispo (violet)
-                        StatCardView(
-                            icon: "sparkle",
-                            title: "Dispo",
-                            value: String(format: "%.1f", availableGrains),
-                            subtitle: "grains",
-                            backgroundColor: Color(red: 0.95, green: 0.9, blue: 1.0),
-                            foregroundColor: Color.purple,
-                            onInfoTapped: { showDispoInfo = true }
-                        )
-                        
-                        // Carte Aujourd'hui (vert)
-                        StatCardView(
-                            icon: "arrow.up.right",
-                            title: "Aujour.",
-                            value: String(format: "%.1f", todayProgress),
-                            subtitle: "/10",
-                            backgroundColor: Color(red: 0.9, green: 1.0, blue: 0.95),
-                            foregroundColor: Color.green,
-                            onInfoTapped: { showTodayInfo = true }
-                        )
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 32)
-                    
+                    headerSection
+                    ratioCardSection
+                    statsGridSection
                     Spacer(minLength: 40)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showProfile = true
-                    } label: {
-                        Circle()
-                            .fill(Color.orange.gradient)
-                            .frame(width: 36, height: 36)
-                            .overlay {
-                                Text("CS")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                            }
-                    }
+                    CurrentUserAvatarButton(
+                        size: 36,
+                        action: { showProfile = true },
+                        showShadow: false
+                    )
                 }
             }
             .sheet(isPresented: $showProfile) {
@@ -251,6 +119,133 @@ struct HourglassView: View {
                 Text("Nombre de grains gagnés aujourd'hui sur un maximum de 10.")
             }
         }
+    }
+}
+
+private extension HourglassView {
+    var headerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Image(systemName: "hourglass")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.orange)
+
+                Text("TON SABLIER")
+                    .font(.system(size: 34, weight: .bold))
+            }
+
+            Text("Ton héritage et ton ratio de vie")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.top, 20)
+        .padding(.bottom, 24)
+    }
+
+    var ratioCardSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.title3)
+
+                    Text("RATIO DE VIE")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                }
+                .foregroundStyle(ratioColor)
+
+                Spacer()
+
+                Button {
+                    showRatioInfo = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.title3)
+                        .foregroundStyle(.gray)
+                }
+            }
+
+            Text(String(format: "%.0f%%", lifeRatio * 100))
+                .font(.system(size: 80, weight: .bold))
+                .foregroundStyle(ratioColor)
+                .frame(maxWidth: .infinity)
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.gray.opacity(0.3))
+
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(ratioColor)
+                        .frame(width: geometry.size.width * lifeRatio)
+                }
+            }
+            .frame(height: 20)
+
+            Text(ratioMessage)
+                .font(.headline)
+                .foregroundStyle(ratioColor)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(24)
+        .background {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(ratioColor.opacity(0.1))
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 24)
+    }
+
+    var statsGridSection: some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 16),
+            GridItem(.flexible(), spacing: 16)
+        ], spacing: 16) {
+            StatCardView(
+                icon: "sparkles",
+                title: "Héritage",
+                value: String(format: "%.1f", totalHeritage),
+                subtitle: "grains",
+                backgroundColor: Color(red: 1.0, green: 0.95, blue: 0.85),
+                foregroundColor: Color(red: 0.8, green: 0.5, blue: 0.2),
+                onInfoTapped: { showHeritageInfo = true }
+            )
+
+            StatCardView(
+                icon: "calendar",
+                title: "Jours",
+                value: "\(daysLived)",
+                subtitle: "vécus",
+                backgroundColor: Color(red: 0.9, green: 0.95, blue: 1.0),
+                foregroundColor: Color.blue,
+                onInfoTapped: { showDaysInfo = true }
+            )
+
+            StatCardView(
+                icon: "sparkle",
+                title: "Dispo",
+                value: String(format: "%.1f", availableGrains),
+                subtitle: "grains",
+                backgroundColor: Color(red: 0.95, green: 0.9, blue: 1.0),
+                foregroundColor: Color.purple,
+                onInfoTapped: { showDispoInfo = true }
+            )
+
+            StatCardView(
+                icon: "arrow.up.right",
+                title: "Aujour.",
+                value: String(format: "%.1f", todayProgress),
+                subtitle: "/10",
+                backgroundColor: Color(red: 0.9, green: 1.0, blue: 0.95),
+                foregroundColor: Color.green,
+                onInfoTapped: { showTodayInfo = true }
+            )
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 32)
     }
 }
 

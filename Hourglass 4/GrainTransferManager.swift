@@ -154,7 +154,7 @@ class GrainTransferManager {
             return 0
         }
 
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        let yesterday = AppTimeZone.calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
 
         let snapshot = try await db.collection("grainTransfers")
             .whereField("toUserId", isEqualTo: currentUserId)

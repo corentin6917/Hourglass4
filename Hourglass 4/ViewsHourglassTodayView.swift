@@ -48,6 +48,18 @@ struct HourglassTodayView: View {
         }
     }
 
+    var appCalendar: Calendar {
+        AppTimeZone.calendar
+    }
+
+    var totalGrainsDisplay: Int {
+        max(10, Int(potentialGrainsToday.rounded(.up)))
+    }
+
+    var earnedGrainsDisplay: Int {
+        min(totalGrainsDisplay, Int(todayGrains.rounded(.down)))
+    }
+
     var motivationalMessage: String {
         let grains = Int(todayGrains)
         if grains == 0 {
@@ -59,6 +71,10 @@ struct HourglassTodayView: View {
         } else {
             return "Journée parfaite !"
         }
+    }
+
+    var formattedDate: String {
+        AppTimeZone.formatDate(Date(), style: .long)
     }
 
     var body: some View {
@@ -90,32 +106,15 @@ struct HourglassTodayView: View {
                                         )
                                     )
 
-                                Text(Date().formatted(date: .long, time: .omitted))
+                                Text(formattedDate)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
 
                             Spacer()
 
-                            Button {
+                            CurrentUserAvatarButton(size: 44) {
                                 showProfile = true
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .frame(width: 44, height: 44)
-                                        .shadow(color: .orange.opacity(0.3), radius: 8, x: 0, y: 4)
-
-                                    Image(systemName: "person.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundStyle(.white)
-                                }
                             }
                         }
                         .padding(.horizontal, 24)
@@ -128,51 +127,17 @@ struct HourglassTodayView: View {
                                 .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 10)
 
                             VStack(spacing: 32) {
-                                // Cercle de progression principal amélioré
+                                // Anneau de grains minimaliste
                                 ZStack {
-                                    // Shadow extérieure douce
-                                    Circle()
-                                        .stroke(ratioColor.opacity(0.1), lineWidth: 28)
-                                        .frame(width: 260, height: 260)
-                                        .shadow(color: ratioColor.opacity(0.2), radius: 20, x: 0, y: 10)
+                                    GrainRingView(
+                                        totalCount: totalGrainsDisplay,
+                                        filledCount: earnedGrainsDisplay,
+                                        color: ratioColor,
+                                        animate: animateProgress
+                                    )
 
-                                    // Cercle de fond
-                                    Circle()
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [
-                                                    ratioColor.opacity(0.15),
-                                                    ratioColor.opacity(0.05)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 26
-                                        )
-                                        .frame(width: 250, height: 250)
-
-                                    // Cercle de progression avec gradient
-                                    Circle()
-                                        .trim(from: 0, to: animateProgress ? lifeRatio : 0)
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [
-                                                    ratioColor,
-                                                    ratioColor.opacity(0.7)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            style: StrokeStyle(lineWidth: 26, lineCap: .round)
-                                        )
-                                        .frame(width: 250, height: 250)
-                                        .rotationEffect(.degrees(-90))
-                                        .animation(.spring(duration: 1.4, bounce: 0.3), value: animateProgress)
-                                        .shadow(color: ratioColor.opacity(0.5), radius: 8, x: 0, y: 4)
-
-                                    // Contenu au centre avec design amélioré
-                                    VStack(spacing: 12) {
-                                        Text(String(format: "%.0f%%", lifeRatio * 100))
+                                    VStack(spacing: 10) {
+                                        Text("\(earnedGrainsDisplay)")
                                             .font(.system(size: 64, weight: .bold))
                                             .foregroundStyle(
                                                 LinearGradient(
@@ -182,7 +147,7 @@ struct HourglassTodayView: View {
                                                 )
                                             )
 
-                                        Text("ratio du jour")
+                                        Text("grains gagnés")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .textCase(.uppercase)
@@ -250,7 +215,7 @@ struct HourglassTodayView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 16) {
                                     ForEach(Array(historicalData.enumerated()), id: \.offset) { index, dayData in
-                                        let calendar = Calendar.current
+                                        let calendar = appCalendar
                                         let weekdaySymbols = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
                                         let weekday = calendar.component(.weekday, from: dayData.date)
                                         let dayString = weekdaySymbols[weekday - 1]
@@ -290,6 +255,43 @@ struct HourglassTodayView: View {
                 historicalData = await goalManager.loadCurrentWeekData()
             }
         }
+    }
+}
+
+// MARK: - Anneau de grains
+
+struct GrainRingView: View {
+    let totalCount: Int
+    let filledCount: Int
+    let color: Color
+    let animate: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let radius = size / 2 - 14
+            let count = max(1, totalCount)
+
+            ZStack {
+                ForEach(0..<count, id: \.self) { index in
+                    let angle = (Double(index) / Double(count)) * (2 * Double.pi) - (Double.pi / 2)
+                    let x = (size / 2) + cos(angle) * radius
+                    let y = (size / 2) + sin(angle) * radius
+                    let isFilled = index < filledCount
+                    let dotSize: CGFloat = isFilled ? 10 : 8
+
+                    Circle()
+                        .fill(isFilled ? color : Color.gray.opacity(0.18))
+                        .frame(width: dotSize, height: dotSize)
+                        .shadow(color: isFilled ? color.opacity(0.35) : .clear, radius: isFilled ? 3 : 0, x: 0, y: 2)
+                        .opacity(animate ? 1 : 0)
+                        .scaleEffect(animate ? 1 : 0.6)
+                        .position(x: x, y: y)
+                        .animation(.easeOut(duration: 0.4).delay(Double(index) * 0.015), value: animate)
+                }
+            }
+        }
+        .frame(width: 250, height: 250)
     }
 }
 

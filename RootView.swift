@@ -15,15 +15,23 @@ struct RootView: View {
 
     @State private var isAuthenticated: Bool = false
     @State private var authListenerHandle: AuthStateDidChangeListenerHandle?
+    @State private var showSplash = true
 
     var body: some View {
-        Group {
-            if isAuthenticated {
-                ContentView(modelContext: modelContext)
-            } else {
-                // LoginView gère la création et la connexion Email/Password
-                // Le RootView observe l'état Auth et bascule automatiquement
-                LoginView()
+        ZStack {
+            Group {
+                if isAuthenticated {
+                    ContentView(modelContext: modelContext)
+                } else {
+                    // LoginView gère la création et la connexion Email/Password
+                    // Le RootView observe l'état Auth et bascule automatiquement
+                    LoginView()
+                }
+            }
+
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
             }
         }
         .onAppear {
@@ -35,12 +43,33 @@ struct RootView: View {
                     isAuthenticated = (user != nil)
                 }
             }
+
+            if showSplash {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showSplash = false
+                    }
+                }
+            }
         }
         .onDisappear {
             if let handle = authListenerHandle {
                 Auth.auth().removeStateDidChangeListener(handle)
                 authListenerHandle = nil
             }
+        }
+    }
+}
+
+struct SplashView: View {
+    var body: some View {
+        ZStack {
+            Color.white
+                .ignoresSafeArea()
+
+            Text("Hourglass")
+                .font(.system(size: 36, weight: .bold))
+                .foregroundStyle(.orange)
         }
     }
 }

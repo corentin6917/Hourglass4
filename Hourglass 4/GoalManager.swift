@@ -73,7 +73,7 @@ class GoalManager: ObservableObject {
         }
 
         do {
-            let calendar = Calendar.current
+            let calendar = AppTimeZone.calendar
             let today = calendar.startOfDay(for: Date())
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
 
@@ -135,6 +135,39 @@ class GoalManager: ObservableObject {
         await loadTodayGoals()
     }
 
+    // MARK: - Historique (fréquence perso)
+
+    func countRecentGoals(matching title: String, withinDays days: Int) async -> Int {
+        guard let currentUser = Auth.auth().currentUser else {
+            return 0
+        }
+
+        let normalized = normalizeTitle(title)
+        guard !normalized.isEmpty else { return 0 }
+
+        let startDate = AppTimeZone.calendar.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+
+        do {
+            let snapshot = try await db.collection("goals")
+                .whereField("userId", isEqualTo: currentUser.uid)
+                .whereField("createdAt", isGreaterThanOrEqualTo: Timestamp(date: startDate))
+                .getDocuments()
+
+            return snapshot.documents.compactMap { FirebaseGoal.from(document: $0) }
+                .filter { normalizeTitle($0.title) == normalized }
+                .count
+        } catch {
+            print("❌ Erreur fréquence objectifs: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    private func normalizeTitle(_ title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let parts = trimmed.split(whereSeparator: { $0.isWhitespace })
+        return parts.joined(separator: " ")
+    }
+
     // MARK: - Charger l'historique de la semaine en cours
 
     func loadCurrentWeekData() async -> [(date: Date, earned: Double, potential: Double)] {
@@ -145,7 +178,7 @@ class GoalManager: ObservableObject {
 
         print("🔄 loadCurrentWeekData: Chargement de l'historique de la semaine en cours")
 
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         var historicalData: [(date: Date, earned: Double, potential: Double)] = []
 
         // Trouver le lundi de cette semaine
@@ -206,7 +239,7 @@ class GoalManager: ObservableObject {
         print("🧮 calculateAdaptiveGrainsBudget: Calcul du budget adaptatif")
 
         // Récupérer les données des 7 derniers jours
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let today = calendar.startOfDay(for: Date())
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
 
@@ -250,6 +283,8 @@ class GoalManager: ObservableObject {
             let averageRatio = dailyRatios.reduce(0.0, +) / Double(dailyRatios.count)
             print("   📈 Moyenne sur 7 jours: \(Int(averageRatio * 100))%")
 
+            let activeDaysCount = dailyRatios.count
+
             // Récupérer le budget actuel depuis le profil utilisateur
             let userDoc = try await db.collection("users").document(currentUser.uid).getDocument()
             let currentBudget = userDoc.data()?["dailyGrainsBudget"] as? Double ?? 10.0
@@ -258,18 +293,12 @@ class GoalManager: ObservableObject {
             var adjustment: Double = 0.0
 
             switch averageRatio {
-            case ..<0.30:
-                adjustment = -2.0 // Réduction rapide
-            case 0.30..<0.40:
-                adjustment = -1.0 // Réduction douce
-            case 0.40..<0.60:
-                adjustment = 0.0  // Zone d'équilibre
-            case 0.60..<0.75:
-                adjustment = 0.5  // Légère augmentation
-            case 0.75..<0.90:
-                adjustment = 1.0  // Bonne augmentation
-            default: // >= 0.90
-                adjustment = 2.0  // Excellente performance
+            case ..<0.40:
+                adjustment = -1.0 // Réduction si perf faible
+            case 0.40..<0.75:
+                adjustment = 0.0  // Stable si perf moyenne
+            default: // >= 0.75
+                adjustment = activeDaysCount >= 5 ? 1.0 : 0.0 // Augmente seulement si assez de jours actifs
             }
 
             // Appliquer l'ajustement avec limites min/max
@@ -303,7 +332,7 @@ class GoalManager: ObservableObject {
 
             // Vérifier si le budget a été calculé aujourd'hui
             if let lastUpdate = (userDoc.data()?["lastBudgetUpdate"] as? Timestamp)?.dateValue() {
-                let calendar = Calendar.current
+                let calendar = AppTimeZone.calendar
                 if calendar.isDateInToday(lastUpdate) {
                     // Budget déjà à jour pour aujourd'hui
                     return userDoc.data()?["dailyGrainsBudget"] as? Double ?? 10.0

@@ -31,95 +31,151 @@ struct SignUpView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    Text("Créer un compte")
-                        .font(.largeTitle)
-                        .bold()
-                        .padding(.bottom, 24)
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemGroupedBackground),
+                        Color.orange.opacity(0.05)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
-                    // Email
+                Circle()
+                    .fill(Color.orange.opacity(0.08))
+                    .frame(width: 260, height: 260)
+                    .offset(x: 140, y: -220)
+
+                Circle()
+                    .fill(Color.orange.opacity(0.05))
+                    .frame(width: 200, height: 200)
+                    .offset(x: -160, y: 260)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        headerSection
+                        formCard
+                        footerSection
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, 32)
+                }
+            }
+        }
+    }
+
+    private var headerSection: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "hourglass")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(.orange)
+
+            Text("Créer un compte")
+                .font(.custom("AvenirNext-DemiBold", size: 22))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
+    }
+
+    private var formCard: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "envelope")
+                        .foregroundStyle(.orange)
+
                     TextField("Adresse e-mail", text: $email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(8)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                }
+                .padding(14)
+                .background(fieldBackground)
 
-                    // Nom d'utilisateur avec vérification
-                    VStack(alignment: .leading, spacing: 4) {
-                        ZStack(alignment: .trailing) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ZStack(alignment: .trailing) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "at")
+                                .foregroundStyle(.orange)
+
                             TextField("Nom d'utilisateur", text: $username)
                                 .textContentType(.username)
-                                .autocapitalization(.none)
-                                .disableAutocorrection(true)
-                                .padding()
-                                .padding(.trailing, 40)
-                                .background(Color(.secondarySystemBackground))
-                                .cornerRadius(8)
-                                .onChange(of: username) { oldValue, newValue in
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled(true)
+                                .onChange(of: username) { _, _ in
                                     checkUsernameAvailability()
                                 }
-
-                            if isCheckingUsername {
-                                ProgressView()
-                                    .padding(.trailing, 12)
-                            } else if let available = usernameAvailable {
-                                Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundColor(available ? .green : .red)
-                                    .padding(.trailing, 12)
-                            }
                         }
+                        .padding(14)
+                        .padding(.trailing, 40)
+                        .background(fieldBackground)
 
-                        if let available = usernameAvailable, !available {
-                            Text("Ce nom d'utilisateur est déjà pris")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .padding(.leading, 4)
+                        if isCheckingUsername {
+                            ProgressView()
+                                .padding(.trailing, 12)
+                        } else if let available = usernameAvailable {
+                            Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundColor(available ? .green : .red)
+                                .padding(.trailing, 12)
                         }
                     }
 
-                    // Nom d'affichage
-                    TextField("Nom d'affichage (optionnel)", text: $displayName)
+                    if let available = usernameAvailable, !available {
+                        Text("Ce nom d'utilisateur est déjà pris")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .padding(.leading, 4)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Image(systemName: "person")
+                        .foregroundStyle(.orange)
+
+                    TextField("Nom complet (optionnel)", text: $displayName)
                         .textContentType(.name)
-                        .autocapitalization(.words)
-                        .disableAutocorrection(true)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(8)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled(true)
+                }
+                .padding(14)
+                .background(fieldBackground)
+            }
 
-                    // Sexe
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Sexe")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Sexe")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                        Picker("Sexe", selection: $gender) {
-                            ForEach(Gender.allCases, id: \.self) { gender in
-                                Text(gender.displayName).tag(gender)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                Picker("Sexe", selection: $gender) {
+                    ForEach(Gender.allCases, id: \.self) { gender in
+                        Text(gender.displayName).tag(gender)
                     }
+                }
+                .pickerStyle(.segmented)
+                .tint(.orange)
+            }
 
-                    // Date de naissance
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Date de naissance (minimum 13 ans)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Date de naissance (minimum 13 ans)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                        DatePicker("", selection: $birthDate, in: minimumBirthDate...maximumBirthDate, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
-                            .padding()
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(8)
-                    }
+                DatePicker("", selection: $birthDate, in: minimumBirthDate...maximumBirthDate, displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
+                    .padding(12)
+                    .background(fieldBackground)
+            }
 
-                    // Mot de passe
-                    ZStack(alignment: .trailing) {
+            VStack(spacing: 12) {
+                ZStack(alignment: .trailing) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "lock")
+                            .foregroundStyle(.orange)
+
                         Group {
                             if showPassword {
                                 TextField("Mot de passe", text: $password)
@@ -129,22 +185,25 @@ struct SignUpView: View {
                                     .textContentType(.newPassword)
                             }
                         }
-                        .padding()
-                        .padding(.trailing, 40)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(8)
-
-                        Button(action: {
-                            showPassword.toggle()
-                        }) {
-                            Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.gray)
-                                .padding(.trailing, 12)
-                        }
                     }
+                    .padding(14)
+                    .padding(.trailing, 40)
+                    .background(fieldBackground)
 
-                    // Confirmer mot de passe
-                    ZStack(alignment: .trailing) {
+                    Button {
+                        showPassword.toggle()
+                    } label: {
+                        Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
+                            .foregroundStyle(.secondary)
+                            .padding(.trailing, 12)
+                    }
+                }
+
+                ZStack(alignment: .trailing) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "lock.rotation")
+                            .foregroundStyle(.orange)
+
                         Group {
                             if showConfirmPassword {
                                 TextField("Confirmer le mot de passe", text: $confirmPassword)
@@ -154,60 +213,90 @@ struct SignUpView: View {
                                     .textContentType(.newPassword)
                             }
                         }
-                        .padding()
-                        .padding(.trailing, 40)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(8)
+                    }
+                    .padding(14)
+                    .padding(.trailing, 40)
+                    .background(fieldBackground)
 
-                        Button(action: {
-                            showConfirmPassword.toggle()
-                        }) {
-                            Image(systemName: showConfirmPassword ? "eye.slash.fill" : "eye.fill")
-                                .foregroundColor(.gray)
-                                .padding(.trailing, 12)
-                        }
+                    Button {
+                        showConfirmPassword.toggle()
+                    } label: {
+                        Image(systemName: showConfirmPassword ? "eye.slash.fill" : "eye.fill")
+                            .foregroundStyle(.secondary)
+                            .padding(.trailing, 12)
                     }
-
-                    if let errorMessage = errorMessage {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    if let infoMessage = infoMessage {
-                        Text(infoMessage)
-                            .foregroundColor(.green)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-
-                    Button(action: signUp) {
-                        if isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                        } else {
-                            Text("Créer le compte")
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(8)
-                        }
-                    }
-                    .disabled(isLoading || usernameAvailable == false)
-
-                    Button("Retour") {
-                        dismiss()
-                    }
-                    .padding(.top, 8)
                 }
-                .padding()
             }
+
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+            }
+            if let infoMessage = infoMessage {
+                Text(infoMessage)
+                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: signUp) {
+                HStack {
+                    Spacer()
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text("Créer le compte")
+                            .font(.custom("AvenirNext-DemiBold", size: 16))
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: .orange.opacity(0.25), radius: 12, x: 0, y: 8)
+            }
+            .disabled(
+                isLoading
+                || email.isEmpty
+                || username.isEmpty
+                || password.isEmpty
+                || confirmPassword.isEmpty
+                || usernameAvailable == false
+            )
         }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 18, x: 0, y: 10)
+        )
+    }
+
+    private var footerSection: some View {
+        Button("Retour") {
+            dismiss()
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .padding(.top, 4)
+    }
+
+    private var fieldBackground: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(Color(uiColor: .secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            }
     }
 
     private func checkUsernameAvailability() {

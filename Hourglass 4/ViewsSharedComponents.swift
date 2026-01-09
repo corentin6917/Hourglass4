@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 // MARK: - Stat Card View
 
@@ -210,6 +211,103 @@ struct InlineInfoBannerCompatView: View {
     }
 }
 
+// MARK: - Current User Avatar Button
+
+struct CurrentUserAvatarButton: View {
+    let size: CGFloat
+    let action: () -> Void
+    var gradientColors: [Color] = [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)]
+    var showShadow: Bool = true
+
+    @StateObject private var userManager = UserManager.shared
+    @State private var userData: UserData?
+    @State private var isLoading = true
+
+    var body: some View {
+        Button {
+            action()
+        } label: {
+            Group {
+                if let userData = userData {
+                    ProfileImageView(
+                        imageURL: userData.profileImageURL,
+                        username: userData.username,
+                        size: size,
+                        gradientColors: gradientColors
+                    )
+                } else if isLoading {
+                    Circle()
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: size, height: size)
+                        .overlay {
+                            ProgressView()
+                                .tint(.orange)
+                        }
+                } else {
+                    ProfileImageView(
+                        imageURL: nil,
+                        username: "U",
+                        size: size,
+                        gradientColors: gradientColors
+                    )
+                }
+            }
+            .frame(width: size, height: size)
+            .shadow(
+                color: showShadow ? Color.orange.opacity(0.3) : .clear,
+                radius: showShadow ? 8 : 0,
+                x: 0,
+                y: showShadow ? 4 : 0
+            )
+        }
+        .buttonStyle(.plain)
+        .task {
+            await loadCurrentUser()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .profileDidUpdate)) { _ in
+            Task {
+                await loadCurrentUser(forceRefresh: true)
+            }
+        }
+    }
+
+    private func loadCurrentUser(forceRefresh: Bool = false) async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            await MainActor.run {
+                isLoading = false
+                userData = nil
+            }
+            return
+        }
+
+        if !forceRefresh, let cached = userManager.cachedUsers[currentUserId] {
+            await MainActor.run {
+                isLoading = false
+                userData = cached
+            }
+            return
+        }
+
+        do {
+            if let data = try await UserManager.shared.getUserProfile(uid: currentUserId) {
+                await MainActor.run {
+                    userManager.cachedUsers[currentUserId] = data
+                    userData = data
+                    isLoading = false
+                }
+            } else {
+                await MainActor.run {
+                    isLoading = false
+                }
+            }
+        } catch {
+            await MainActor.run {
+                isLoading = false
+            }
+        }
+    }
+}
+
 // MARK: - Objective Stat Card
 
 struct ObjectiveStatCard: View {
@@ -241,4 +339,3 @@ struct ObjectiveStatCard: View {
         }
     }
 }
-

@@ -55,7 +55,7 @@ struct Victory: Identifiable, Codable {
         self.photoURL = photoURL
         self.createdAt = createdAt
 
-        var calendar = Calendar.current
+        var calendar = AppTimeZone.calendar
         calendar.timeZone = TimeZone.current // Utiliser le fuseau horaire local
 
         // Visible à partir de 21h le jour de création
@@ -88,12 +88,13 @@ struct Victory: Identifiable, Codable {
     }
 
     var timeAgoString: String {
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let now = Date()
 
         // Formatter pour l'heure
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = AppTimeZone.current
         let timeString = timeFormatter.string(from: createdAt)
 
         // Vérifier si c'est aujourd'hui
@@ -110,6 +111,7 @@ struct Victory: Identifiable, Codable {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "d MMM"
         dateFormatter.locale = Locale(identifier: "fr_FR")
+        dateFormatter.timeZone = AppTimeZone.current
         let dateString = dateFormatter.string(from: createdAt)
 
         return "\(dateString) à \(timeString)"
@@ -176,12 +178,13 @@ struct VictoryComment: Identifiable, Codable {
     let createdAt: Date
 
     var timeAgoString: String {
-        let calendar = Calendar.current
+        let calendar = AppTimeZone.calendar
         let now = Date()
 
         // Formatter pour l'heure
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = AppTimeZone.current
         let timeString = timeFormatter.string(from: createdAt)
 
         // Vérifier si c'est aujourd'hui
@@ -198,6 +201,7 @@ struct VictoryComment: Identifiable, Codable {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "d MMM"
         dateFormatter.locale = Locale(identifier: "fr_FR")
+        dateFormatter.timeZone = AppTimeZone.current
         let dateString = dateFormatter.string(from: createdAt)
 
         return "\(dateString) à \(timeString)"

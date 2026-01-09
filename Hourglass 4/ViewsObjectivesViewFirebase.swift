@@ -41,131 +41,183 @@ struct ObjectivesViewFirebase: View {
         completedGoals.reduce(0) { $0 + $1.grainValue }
     }
 
+    var formattedDate: String {
+        AppTimeZone.formatDate(Date(), style: .long)
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Section: Potentiel du Jour avec icône info
-                    ZStack(alignment: .topTrailing) {
-                        PotentialCardView(
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Objectifs")
+                                    .font(.system(size: 34, weight: .bold))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+
+                                Text(formattedDate)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            CurrentUserAvatarButton(size: 42) {
+                                showProfile = true
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 12)
+
+                        ObjectiveBudgetCard(
                             allocated: potentialAllocated,
                             remaining: potentialRemaining,
                             totalBudget: dailyBudget
-                        )
-
-                        // Icône "i" d'information
-                        Button {
+                        ) {
                             showBudgetInfo = true
-                        } label: {
-                            Image(systemName: "info.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.orange)
-                                .padding(8)
                         }
-                    }
-                    .padding(.horizontal)
+                        .padding(.horizontal, 24)
 
-                    // Règles
-                    InfoBannerView(
-                        text: "Règles : Tu dois définir entre 1 et 3 objectifs par jour, pour un maximum de 10 grains au total.",
-                        tint: .orange
-                    )
-                    .padding(.horizontal)
-
-                    // Statistiques en cartes
-                    HStack(spacing: 12) {
-                        ObjectiveStatCard(
-                            icon: "clock",
-                            value: "\(pendingGoals.count)",
-                            label: "En cours",
-                            color: .gray
+                        InlineInfoBannerView(
+                            text: "Règles : 1 à 3 objectifs par jour, pour un maximum de 10 grains au total.",
+                            tint: .orange
                         )
+                        .padding(.horizontal, 24)
 
-                        ObjectiveStatCard(
-                            icon: "checkmark.circle",
-                            value: String(format: "%.1f", grainsEarned),
-                            label: "Gagnés",
-                            color: .green
-                        )
+                        HStack(spacing: 12) {
+                            ObjectiveQuickStat(
+                                icon: "clock",
+                                value: "\(pendingGoals.count)",
+                                label: "En cours",
+                                color: .gray
+                            )
 
-                        ObjectiveStatCard(
-                            icon: "arrow.up.right",
-                            value: "\(completedGoals.count)/\(todayGoals.count)",
-                            label: "Objectifs",
-                            color: .orange
-                        )
-                    }
-                    .padding(.horizontal)
+                            ObjectiveQuickStat(
+                                icon: "checkmark.circle.fill",
+                                value: String(format: "%.1f", grainsEarned),
+                                label: "Gagnés",
+                                color: .green
+                            )
 
-                    // Bouton Nouvel Objectif
-                    if todayGoals.count < 3 && potentialRemaining > 0 {
-                        Button {
-                            showNewGoal = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.title2)
+                            ObjectiveQuickStat(
+                                icon: "flag.fill",
+                                value: "\(completedGoals.count)/\(todayGoals.count)",
+                                label: "Objectifs",
+                                color: .orange
+                            )
+                        }
+                        .padding(.horizontal, 24)
 
-                                Text("Nouvel Objectif (\(todayGoals.count)/3)")
+                        if todayGoals.count < 3 && potentialRemaining > 0 {
+                            Button {
+                                showNewGoal = true
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "plus")
+                                        .font(.subheadline)
+                                    Text("Nouvel objectif (\(todayGoals.count)/3)")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background {
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .shadow(color: .orange.opacity(0.3), radius: 8, x: 0, y: 4)
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                        }
+
+                        if pendingGoals.isEmpty && completedGoals.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "target")
+                                    .font(.system(size: 34))
+                                    .foregroundStyle(.orange)
+                                Text("Aucun objectif pour aujourd'hui")
                                     .font(.headline)
+                                Text("Ajoute ton premier objectif pour commencer.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
                             }
-                            .foregroundStyle(.orange)
                             .frame(maxWidth: .infinity)
-                            .padding()
+                            .padding(.vertical, 24)
+                            .padding(.horizontal, 24)
                             .background {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.orange.opacity(0.1))
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color(uiColor: .systemBackground))
+                                    .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
                             }
-                        }
-                        .padding(.horizontal)
-                    }
+                            .padding(.horizontal, 24)
+                        } else {
+                            VStack(alignment: .leading, spacing: 16) {
+                                if !pendingGoals.isEmpty {
+                                    Text("En cours")
+                                        .font(.headline)
+                                        .padding(.horizontal, 24)
 
-                    // Liste des objectifs
-                    if !todayGoals.isEmpty {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Objectifs d'aujourd'hui")
-                                .font(.headline)
-                                .padding(.horizontal)
-
-                            ForEach(todayGoals) { goal in
-                                FirebaseGoalCard(goal: goal)
-                                    .padding(.horizontal)
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            Task {
-                                                try? await goalManager.deleteGoal(goal)
+                                    ForEach(pendingGoals) { goal in
+                                        FirebaseGoalCard(goal: goal)
+                                            .padding(.horizontal, 24)
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                Button(role: .destructive) {
+                                                    Task {
+                                                        try? await goalManager.deleteGoal(goal)
+                                                    }
+                                                } label: {
+                                                    Label("Supprimer", systemImage: "trash")
+                                                }
                                             }
-                                        } label: {
-                                            Label("Supprimer", systemImage: "trash")
-                                        }
                                     }
+                                }
+
+                                if !completedGoals.isEmpty {
+                                    Text("Validés")
+                                        .font(.headline)
+                                        .padding(.horizontal, 24)
+
+                                    ForEach(completedGoals) { goal in
+                                        FirebaseGoalCard(goal: goal)
+                                            .padding(.horizontal, 24)
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                Button(role: .destructive) {
+                                                    Task {
+                                                        try? await goalManager.deleteGoal(goal)
+                                                    }
+                                                } label: {
+                                                    Label("Supprimer", systemImage: "trash")
+                                                }
+                                            }
+                                    }
+                                }
                             }
                         }
-                    }
 
-                    Spacer(minLength: 40)
-                }
-                .padding(.vertical)
-            }
-            .navigationTitle("Mes Objectifs")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showProfile = true
-                    } label: {
-                        Circle()
-                            .fill(Color.orange.gradient)
-                            .frame(width: 36, height: 36)
-                            .overlay {
-                                Text("CS")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                            }
+                        Spacer(minLength: 40)
                     }
+                    .padding(.vertical, 8)
                 }
             }
+            .navigationBarHidden(true)
             .sheet(isPresented: $showNewGoal) {
                 FirebaseCreateGoalView()
             }
@@ -259,6 +311,126 @@ struct BudgetInfoSheet: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Objective Budget Card
+
+struct ObjectiveBudgetCard: View {
+    let allocated: Double
+    let remaining: Double
+    let totalBudget: Double
+    let onInfo: () -> Void
+
+    private var totalCount: Int {
+        max(1, Int(totalBudget.rounded(.up)))
+    }
+
+    private var allocatedCount: Int {
+        min(totalCount, Int(allocated.rounded(.down)))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Grains du jour")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Spacer()
+
+                Button {
+                    onInfo()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(Int(totalBudget))")
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundStyle(.orange)
+
+                Text("grains")
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+            }
+
+            GrainDotsRow(total: totalCount, filled: allocatedCount, color: .orange)
+
+            HStack {
+                Text("Alloués: \(String(format: "%.1f", allocated))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("Restant: \(String(format: "%.1f", remaining))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .background {
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
+        }
+    }
+}
+
+struct GrainDotsRow: View {
+    let total: Int
+    let filled: Int
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<total, id: \.self) { index in
+                Circle()
+                    .fill(index < filled ? color : Color.gray.opacity(0.2))
+                    .frame(width: 8, height: 8)
+            }
+        }
+    }
+}
+
+// MARK: - Objective Quick Stat
+
+struct ObjectiveQuickStat: View {
+    let icon: String
+    let value: String
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Circle()
+                .fill(color.opacity(0.15))
+                .frame(width: 36, height: 36)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(color)
+                }
+
+            Text(value)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
         }
     }
 }

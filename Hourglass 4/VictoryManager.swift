@@ -133,7 +133,7 @@ class VictoryManager: ObservableObject {
         }
 
         // Récupérer toutes les victoires récentes des amis (dernières 48h pour couvrir 2 cycles de 24h)
-        let twoDaysAgo = Calendar.current.date(byAdding: .day, value: -2, to: now) ?? now
+        let twoDaysAgo = AppTimeZone.calendar.date(byAdding: .day, value: -2, to: now) ?? now
 
         let snapshot = try await db.collection("victories")
             .whereField("userId", in: friendIds)
