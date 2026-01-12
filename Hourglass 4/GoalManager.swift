@@ -285,10 +285,6 @@ class GoalManager: ObservableObject {
 
             let activeDaysCount = dailyRatios.count
 
-            // Récupérer le budget actuel depuis le profil utilisateur
-            let userDoc = try await db.collection("users").document(currentUser.uid).getDocument()
-            let currentBudget = userDoc.data()?["dailyGrainsBudget"] as? Double ?? 10.0
-
             // Calculer l'ajustement basé sur la performance
             var adjustment: Double = 0.0
 
@@ -301,11 +297,12 @@ class GoalManager: ObservableObject {
                 adjustment = activeDaysCount >= 5 ? 1.0 : 0.0 // Augmente seulement si assez de jours actifs
             }
 
-            // Appliquer l'ajustement avec limites min/max
-            var newBudget = currentBudget + adjustment
+            // Appliquer l'ajustement autour d'un budget de base stable
+            let baseBudget = 10.0
+            var newBudget = baseBudget + adjustment
             newBudget = max(5.0, min(15.0, newBudget)) // Entre 5 et 15 grains
 
-            print("   🎯 Budget actuel: \(currentBudget) → Nouveau: \(newBudget) (ajustement: \(adjustment))")
+            print("   🎯 Budget de base: \(baseBudget) → Nouveau: \(newBudget) (ajustement: \(adjustment))")
 
             // Sauvegarder le nouveau budget dans Firebase
             try await db.collection("users").document(currentUser.uid).setData([

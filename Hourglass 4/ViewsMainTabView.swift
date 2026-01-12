@@ -40,7 +40,14 @@ struct MainTabView: View {
                 .tag(2)
         }
         .tint(.orange)
+        .onReceive(NotificationCenter.default.publisher(for: .switchToObjectivesTab)) { _ in
+            selectedTab = 2
+        }
     }
+}
+
+extension Notification.Name {
+    static let switchToObjectivesTab = Notification.Name("switchToObjectivesTab")
 }
 
 #Preview {

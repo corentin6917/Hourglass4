@@ -119,6 +119,10 @@ struct MainProfileCard: View {
     @State private var isUploadingImage = false
     @State private var uploadError: String? = nil
     @State private var friendsCount = 0
+    @State private var heritageTotal: Double = 0
+    @State private var isLoadingHeritage = true
+    @State private var showHeritageInfo = false
+    @State private var showPinnedVictories = false
 
     var username: String {
         userData?.username ?? "Utilisateur"
@@ -201,11 +205,69 @@ struct MainProfileCard: View {
                         .fontWeight(.semibold)
                 }
 
-                HStack(spacing: 28) {
-                    StatItem(title: "\(friendsCount)", subtitle: "Complices")
-                    Divider()
-                        .frame(height: 30)
-                    StatItem(title: isPublic ? "Public" : "Privé", subtitle: "Profil")
+                VStack(spacing: 12) {
+                    HStack(spacing: 24) {
+                        StatItem(title: "\(friendsCount)", subtitle: "Complices")
+                        Divider()
+                            .frame(height: 30)
+                        StatItem(
+                            title: isLoadingHeritage ? "…" : "\(Int(heritageTotal))",
+                            subtitle: "Héritage"
+                        )
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showHeritageInfo.toggle()
+                            }
+                        }
+                        Divider()
+                            .frame(height: 30)
+                        StatItem(title: isPublic ? "Public" : "Privé", subtitle: "Profil")
+                    }
+
+                    if showHeritageInfo {
+                        VStack(spacing: 0) {
+                            InfoBubbleTriangleUp()
+                                .fill(Color(uiColor: .systemBackground))
+                                .frame(width: 20, height: 10)
+                                .shadow(color: .orange.opacity(0.15), radius: 4, x: 0, y: -2)
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "hourglass.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+
+                                    Text("Ton Héritage")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                }
+
+                                Text("C'est le total de tous les grains que tu as accumulés depuis le début. Chaque objectif validé contribue à ton héritage qui grandit jour après jour.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(16)
+                            .background {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(uiColor: .systemBackground))
+                                    .shadow(color: .orange.opacity(0.25), radius: 16, x: 0, y: 8)
+                            }
+                        }
+                        .frame(maxWidth: 280)
+                        .transition(.scale.combined(with: .opacity))
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showHeritageInfo = false
+                            }
+                        }
+                    }
                 }
                 .padding(.horizontal, 24)
 
@@ -240,6 +302,26 @@ struct MainProfileCard: View {
                             }
                     }
                 }
+
+                Button {
+                    showPinnedVictories = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Victoires épinglées")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .fill(Color.orange.opacity(0.12))
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity)
@@ -264,12 +346,16 @@ struct MainProfileCard: View {
         .onAppear {
             loadUserData()
             loadFriendsCount()
+            loadHeritageTotal()
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileDidUpdate)) { _ in
             loadUserData()
         }
         .sheet(isPresented: $showShareOptions) {
             ShareProfileView(shareText: generateShareText())
+        }
+        .sheet(isPresented: $showPinnedVictories) {
+            PinnedVictoriesView(userId: Auth.auth().currentUser?.uid ?? "", displayName: displayName)
         }
         .sheet(isPresented: $showImagePicker) {
             ProfileImageSourcePicker(selectedImage: $selectedImage)
@@ -321,6 +407,39 @@ struct MainProfileCard: View {
                 }
             } catch {
                 print("Erreur lors du chargement des amis: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func loadHeritageTotal() {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            isLoadingHeritage = false
+            return
+        }
+
+        isLoadingHeritage = true
+        let db = Firestore.firestore()
+
+        Task {
+            do {
+                let snapshot = try await db.collection("goals")
+                    .whereField("userId", isEqualTo: currentUserId)
+                    .whereField("status", isEqualTo: GoalStatus.completed.rawValue)
+                    .getDocuments()
+
+                let total = snapshot.documents.reduce(0.0) { partial, doc in
+                    let value = doc.data()["grainValue"] as? Double ?? 0.0
+                    return partial + value
+                }
+
+                await MainActor.run {
+                    heritageTotal = total
+                    isLoadingHeritage = false
+                }
+            } catch {
+                await MainActor.run {
+                    isLoadingHeritage = false
+                }
             }
         }
     }
@@ -383,6 +502,17 @@ struct StatItem: View {
                 .foregroundStyle(.secondary)
         }
         .frame(minWidth: 80)
+    }
+}
+
+struct TrianglePointer: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -519,6 +649,8 @@ struct FriendsSection: View {
                         .padding(.bottom, 4)
                     }
                 }
+                .padding(.top, 6)
+                .padding(.bottom, 4)
             }
         }
         .padding()
@@ -1345,51 +1477,39 @@ struct EditProfileView: View {
             if isLoading {
                 ProgressView()
             } else {
-                Form {
-                    Section("Informations personnelles") {
-                        TextField("Nom complet", text: $fullName)
-                        TextField("Nom d'utilisateur", text: $username)
-                            .textInputAutocapitalization(.never)
-                        TextField("Email", text: $email)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.emailAddress)
-                            .disabled(true) // L'email ne peut pas être modifié facilement
-                            .foregroundStyle(.secondary)
-                    }
+                ZStack {
+                    LinearGradient(
+                        colors: [
+                            Color(uiColor: .systemGroupedBackground),
+                            Color.orange.opacity(0.05)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
 
-                    Section("Informations supplémentaires") {
-                        Picker("Genre", selection: $selectedGender) {
-                            ForEach(Gender.allCases, id: \.self) { gender in
-                                Text(gender.displayName).tag(gender)
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 20) {
+                            profileHeader
+                            personalInfoCard
+                            additionalInfoCard
+                            privacyCard
+
+                            if let errorMessage {
+                                Text(errorMessage)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+
+                            if let successMessage {
+                                Text(successMessage)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-
-                        DatePicker(
-                            "Date de naissance",
-                            selection: $birthDate,
-                            in: ...Date(),
-                            displayedComponents: .date
-                        )
-                    }
-
-                    Section("Confidentialité") {
-                        Toggle("Profil public", isOn: $isPublic)
-                    }
-
-                    if let errorMessage {
-                        Section {
-                            Text(errorMessage)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                    }
-
-                    if let successMessage {
-                        Section {
-                            Text(successMessage)
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 32)
                     }
                 }
                 .navigationTitle("Modifier le profil")
@@ -1416,6 +1536,119 @@ struct EditProfileView: View {
         .onAppear {
             loadUserData()
         }
+    }
+
+    private var profileHeader: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 42, weight: .light))
+                .foregroundStyle(.orange)
+
+            Text("Informations personnelles")
+                .font(.custom("AvenirNext-DemiBold", size: 18))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
+    private var personalInfoCard: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "person")
+                    .foregroundStyle(.orange)
+                TextField("Nom complet", text: $fullName)
+                    .textContentType(.name)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled(true)
+            }
+            .padding(14)
+            .background(fieldBackground)
+
+            HStack(spacing: 10) {
+                Image(systemName: "at")
+                    .foregroundStyle(.orange)
+                TextField("Nom d'utilisateur", text: $username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+            }
+            .padding(14)
+            .background(fieldBackground)
+
+            HStack(spacing: 10) {
+                Image(systemName: "envelope")
+                    .foregroundStyle(.orange)
+                TextField("Email", text: $email)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                    .disabled(true)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(fieldBackground)
+        }
+        .padding(18)
+        .background(cardBackground)
+    }
+
+    private var additionalInfoCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Informations supplémentaires")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker("Genre", selection: $selectedGender) {
+                ForEach(Gender.allCases, id: \.self) { gender in
+                    Text(gender.displayName).tag(gender)
+                }
+            }
+            .pickerStyle(.segmented)
+            .tint(.orange)
+
+            HStack {
+                Text("Date de naissance")
+                    .font(.subheadline)
+                Spacer()
+                DatePicker(
+                    "",
+                    selection: $birthDate,
+                    in: ...Date(),
+                    displayedComponents: .date
+                )
+                .labelsHidden()
+            }
+            .padding(12)
+            .background(fieldBackground)
+        }
+        .padding(18)
+        .background(cardBackground)
+    }
+
+    private var privacyCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Confidentialité")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("Profil public", isOn: $isPublic)
+                .tint(.orange)
+        }
+        .padding(18)
+        .background(cardBackground)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 18)
+            .fill(Color(uiColor: .systemBackground))
+            .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 8)
+    }
+
+    private var fieldBackground: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(Color(uiColor: .secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            }
     }
 
     private func loadUserData() {
@@ -2031,6 +2264,30 @@ struct ShareProfileView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - InfoBubbleTriangle Shape (pour la bulle d'info)
+
+struct InfoBubbleTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+struct InfoBubbleTriangleUp: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

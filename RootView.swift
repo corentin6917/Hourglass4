@@ -67,9 +67,61 @@ struct SplashView: View {
             Color.white
                 .ignoresSafeArea()
 
-            Text("Hourglass")
+            ShimmeringText(text: "Hourglass")
+        }
+    }
+}
+
+struct ShimmeringText: View {
+    let text: String
+
+    private var characters: [String] {
+        text.map { String($0) }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(characters.enumerated()), id: \.offset) { index, char in
+                ShimmerLetter(char: char, delay: Double(index) * 0.12)
+            }
+        }
+    }
+}
+
+struct ShimmerLetter: View {
+    let char: String
+    let delay: Double
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            Text(char)
                 .font(.system(size: 36, weight: .bold))
                 .foregroundStyle(.orange)
+
+            Text(char)
+                .font(.system(size: 36, weight: .bold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.4),
+                            Color.white.opacity(0.9),
+                            Color.orange.opacity(0.4)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .mask(
+                    Rectangle()
+                        .fill(Color.white)
+                        .offset(x: animate ? 40 : -40)
+                )
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false).delay(delay)) {
+                animate = true
+            }
         }
     }
 }

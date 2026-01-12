@@ -280,4 +280,55 @@ class VictoryManager: ObservableObject {
         let photoRef = storage.reference(forURL: urlString)
         try await photoRef.delete()
     }
+
+    // MARK: - Victoires épinglées
+
+    func loadPinnedVictories(userId: String) async throws -> [Victory] {
+        let userDoc = try await db.collection("users").document(userId).getDocument()
+        let ids = userDoc.data()?["pinnedVictoryIds"] as? [String] ?? []
+
+        if ids.isEmpty {
+            return []
+        }
+
+        let snapshot = try await db.collection("victories")
+            .whereField("victoryId", in: ids)
+            .getDocuments()
+
+        let victories = snapshot.documents.compactMap { Victory.from(document: $0) }
+        return victories.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func isVictoryPinned(_ victoryId: String, userId: String) async throws -> Bool {
+        let userDoc = try await db.collection("users").document(userId).getDocument()
+        let ids = userDoc.data()?["pinnedVictoryIds"] as? [String] ?? []
+        return ids.contains(victoryId)
+    }
+
+    func pinVictory(_ victoryId: String, userId: String) async throws {
+        let userRef = db.collection("users").document(userId)
+        let snapshot = try await userRef.getDocument()
+        let ids = snapshot.data()?["pinnedVictoryIds"] as? [String] ?? []
+
+        if ids.contains(victoryId) {
+            return
+        }
+
+        if ids.count >= 10 {
+            throw NSError(domain: "VictoryManager", code: 400, userInfo: [
+                NSLocalizedDescriptionKey: "Tu as déjà 10 victoires épinglées."
+            ])
+        }
+
+        try await userRef.updateData([
+            "pinnedVictoryIds": FieldValue.arrayUnion([victoryId])
+        ])
+    }
+
+    func unpinVictory(_ victoryId: String, userId: String) async throws {
+        let userRef = db.collection("users").document(userId)
+        try await userRef.updateData([
+            "pinnedVictoryIds": FieldValue.arrayRemove([victoryId])
+        ])
+    }
 }
