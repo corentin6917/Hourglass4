@@ -47,9 +47,16 @@ struct ObjectivesViewFirebase: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
+            ZStack(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        Color.white,
+                        Color.orange.opacity(0.05)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 20) {
@@ -87,65 +94,6 @@ struct ObjectivesViewFirebase: View {
                             showBudgetInfo = true
                         }
                         .padding(.horizontal, 24)
-
-                        InlineInfoBannerView(
-                            text: "Règles : 1 à 3 objectifs par jour, pour un maximum de 10 grains au total.",
-                            tint: .orange
-                        )
-                        .padding(.horizontal, 24)
-
-                        HStack(spacing: 12) {
-                            ObjectiveQuickStat(
-                                icon: "clock",
-                                value: "\(pendingGoals.count)",
-                                label: "En cours",
-                                color: .gray
-                            )
-
-                            ObjectiveQuickStat(
-                                icon: "checkmark.circle.fill",
-                                value: String(format: "%.1f", grainsEarned),
-                                label: "Gagnés",
-                                color: .green
-                            )
-
-                            ObjectiveQuickStat(
-                                icon: "flag.fill",
-                                value: "\(completedGoals.count)/\(todayGoals.count)",
-                                label: "Objectifs",
-                                color: .orange
-                            )
-                        }
-                        .padding(.horizontal, 24)
-
-                        if todayGoals.count < 3 && potentialRemaining > 0 {
-                            Button {
-                                showNewGoal = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "plus")
-                                        .font(.subheadline)
-                                    Text("Nouvel objectif (\(todayGoals.count)/3)")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background {
-                                    Capsule()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .shadow(color: .orange.opacity(0.3), radius: 8, x: 0, y: 4)
-                                }
-                            }
-                            .padding(.horizontal, 24)
-                        }
 
                         if pendingGoals.isEmpty && completedGoals.isEmpty {
                             VStack(spacing: 12) {
@@ -215,6 +163,38 @@ struct ObjectivesViewFirebase: View {
                         Spacer(minLength: 40)
                     }
                     .padding(.vertical, 8)
+                }
+
+                // Bouton d'ajout élégant
+                if todayGoals.count < 3 && potentialRemaining > 0 {
+                    Button {
+                        showNewGoal = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "target")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+
+                            Text("Nouvel objectif")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 14)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
+                        }
+                    }
+                    .padding(.bottom, 24)
                 }
             }
             .navigationBarHidden(true)

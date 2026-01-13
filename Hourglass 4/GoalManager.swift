@@ -283,26 +283,39 @@ class GoalManager: ObservableObject {
             let averageRatio = dailyRatios.reduce(0.0, +) / Double(dailyRatios.count)
             print("   📈 Moyenne sur 7 jours: \(Int(averageRatio * 100))%")
 
-            let activeDaysCount = dailyRatios.count
+            // Récupérer le budget actuel de l'utilisateur
+            let userDoc = try await db.collection("users").document(currentUser.uid).getDocument()
+            let currentBudget = userDoc.data()?["dailyGrainsBudget"] as? Double ?? 10.0
 
-            // Calculer l'ajustement basé sur la performance
+            print("   💰 Budget actuel: \(currentBudget)")
+
+            // Calculer l'ajustement basé sur la performance hebdomadaire
             var adjustment: Double = 0.0
 
             switch averageRatio {
             case ..<0.40:
-                adjustment = -1.0 // Réduction si perf faible
-            case 0.40..<0.75:
-                adjustment = 0.0  // Stable si perf moyenne
+                // Performance faible (< 40%) : diminuer le budget pour rendre 100% atteignable
+                adjustment = -2.0
+                print("   📉 Performance faible (< 40%) → Réduction de 2 grains")
+            case 0.40..<0.60:
+                // Performance équilibrée (40-60%) : budget stable
+                adjustment = 0.0
+                print("   ⚖️ Performance équilibrée (40-60%) → Budget stable")
+            case 0.60..<0.75:
+                // Performance moyenne-haute (60-75%) : légère augmentation
+                adjustment = 1.0
+                print("   📊 Performance moyenne-haute (60-75%) → Augmentation de 1 grain")
             default: // >= 0.75
-                adjustment = activeDaysCount >= 5 ? 1.0 : 0.0 // Augmente seulement si assez de jours actifs
+                // Performance élevée (> 75%) : augmentation progressive
+                adjustment = 2.0
+                print("   📈 Performance élevée (> 75%) → Augmentation de 2 grains")
             }
 
-            // Appliquer l'ajustement autour d'un budget de base stable
-            let baseBudget = 10.0
-            var newBudget = baseBudget + adjustment
+            // Appliquer l'ajustement progressif avec limites
+            var newBudget = currentBudget + adjustment
             newBudget = max(5.0, min(15.0, newBudget)) // Entre 5 et 15 grains
 
-            print("   🎯 Budget de base: \(baseBudget) → Nouveau: \(newBudget) (ajustement: \(adjustment))")
+            print("   🎯 Nouveau budget: \(newBudget) (ajustement: \(adjustment > 0 ? "+" : "")\(adjustment))")
 
             // Sauvegarder le nouveau budget dans Firebase
             try await db.collection("users").document(currentUser.uid).setData([
