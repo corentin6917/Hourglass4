@@ -24,7 +24,7 @@ class VictoryManager: ObservableObject {
 
     // MARK: - Créer une victoire
 
-    func createVictory(goalTitle: String, goalEmoji: String, photoImage: UIImage) async throws -> Victory {
+    func createVictory(goalTitle: String, goalEmoji: String, photoImage: UIImage, comment: String? = nil) async throws -> Victory {
         guard let currentUser = Auth.auth().currentUser else {
             throw NSError(domain: "VictoryManager", code: 401, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"])
         }
@@ -40,11 +40,13 @@ class VictoryManager: ObservableObject {
         let photoURL = try await uploadVictoryPhoto(photoImage, userId: currentUser.uid)
 
         // 3. Créer la victoire
+        let trimmedComment = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
         let victory = Victory(
             userId: currentUser.uid,
             username: userData.username,
             displayName: userData.displayName,
             profileImageURL: userData.profileImageURL,
+            comment: (trimmedComment?.isEmpty == false) ? trimmedComment : nil,
             goalTitle: goalTitle,
             goalEmoji: goalEmoji,
             photoURL: photoURL
@@ -54,6 +56,100 @@ class VictoryManager: ObservableObject {
         try await db.collection("victories").document(victory.victoryId).setData(victory.dictionary)
 
         return victory
+    }
+
+    // MARK: - Mettre à jour le commentaire d'une victoire
+
+    func updateVictoryComment(_ victory: Victory, comment: String?) async throws -> Victory {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "VictoryManager", code: 401, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"])
+        }
+
+        guard currentUserId == victory.userId else {
+            throw NSError(domain: "VictoryManager", code: 403, userInfo: [NSLocalizedDescriptionKey: "Action non autorisée"])
+        }
+
+        let trimmedComment = comment?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let savedComment: String? = trimmedComment.isEmpty ? nil : trimmedComment
+
+        try await db.collection("victories")
+            .document(victory.victoryId)
+            .updateData(["comment": trimmedComment])
+
+        let updatedVictory = Victory(
+            victoryId: victory.victoryId,
+            userId: victory.userId,
+            username: victory.username,
+            displayName: victory.displayName,
+            profileImageURL: victory.profileImageURL,
+            comment: savedComment,
+            goalTitle: victory.goalTitle,
+            goalEmoji: victory.goalEmoji,
+            photoURL: victory.photoURL,
+            createdAt: victory.createdAt,
+            boostCount: victory.boostCount,
+            commentCount: victory.commentCount,
+            boostedBy: victory.boostedBy
+        )
+
+        await MainActor.run {
+            if let index = victories.firstIndex(where: { $0.victoryId == victory.victoryId }) {
+                victories[index] = updatedVictory
+            }
+        }
+
+        return updatedVictory
+    }
+
+    // MARK: - Commentaire d'une victoire (par id)
+
+    func fetchVictoryComment(victoryId: String) async throws -> String? {
+        let snapshot = try await db.collection("victories").document(victoryId).getDocument()
+        let comment = snapshot.data()?["comment"] as? String
+        let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    func fetchVictoryIdByPhotoURL(_ photoURL: String, userId: String) async throws -> String? {
+        let snapshot = try await db.collection("victories")
+            .whereField("userId", isEqualTo: userId)
+            .whereField("photoURL", isEqualTo: photoURL)
+            .limit(to: 1)
+            .getDocuments()
+
+        guard let document = snapshot.documents.first else { return nil }
+        let victoryId = document.data()["victoryId"] as? String
+        return victoryId ?? document.documentID
+    }
+
+    func updateVictoryComment(victoryId: String, comment: String?) async throws {
+        let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        try await db.collection("victories")
+            .document(victoryId)
+            .updateData(["comment": trimmed])
+
+        await MainActor.run {
+            if let index = victories.firstIndex(where: { $0.victoryId == victoryId }) {
+                let victory = victories[index]
+                let updated = Victory(
+                    victoryId: victory.victoryId,
+                    userId: victory.userId,
+                    username: victory.username,
+                    displayName: victory.displayName,
+                    profileImageURL: victory.profileImageURL,
+                    comment: trimmed.isEmpty ? nil : trimmed,
+                    goalTitle: victory.goalTitle,
+                    goalEmoji: victory.goalEmoji,
+                    photoURL: victory.photoURL,
+                    createdAt: victory.createdAt,
+                    boostCount: victory.boostCount,
+                    commentCount: victory.commentCount,
+                    boostedBy: victory.boostedBy
+                )
+                victories[index] = updated
+            }
+        }
     }
 
     // MARK: - Upload photo de victoire
@@ -167,14 +263,50 @@ class VictoryManager: ObservableObject {
 
     // MARK: - Booster une victoire (Éclat de Grain)
 
-    func boostVictory(_ victory: Victory) async throws {
+    func fetchDailyGrainSpent() async throws -> Double {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
             throw NSError(domain: "VictoryManager", code: 401)
         }
 
-        // Vérifier que l'utilisateur n'a pas déjà boosté
+        let snapshot = try await db.collection("users").document(currentUserId).getDocument()
+        let data = snapshot.data() ?? [:]
+        let todayKey = Self.dayKey(for: Date())
+        let storedKey = data["dailyGrainSpentDate"] as? String ?? ""
+        let spent = data["dailyGrainSpent"] as? Double ?? 0.0
+
+        if storedKey != todayKey {
+            return 0.0
+        }
+
+        return spent
+    }
+
+    // MARK: - Donner 1 grain à une victoire
+
+    func donateGrain(_ victory: Victory, availableBudget: Double) async throws -> Double {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "VictoryManager", code: 401)
+        }
+
+        // Vérifier que l'utilisateur n'a pas déjà donné
         if victory.boostedBy.contains(currentUserId) {
-            throw NSError(domain: "VictoryManager", code: 409, userInfo: [NSLocalizedDescriptionKey: "Vous avez déjà boosté cette victoire"])
+            throw NSError(domain: "VictoryManager", code: 409, userInfo: [NSLocalizedDescriptionKey: "Tu as déjà donné 1 grain à cette victoire"])
+        }
+
+        if availableBudget < 1 {
+            throw NSError(domain: "VictoryManager", code: 402, userInfo: [NSLocalizedDescriptionKey: "Plus de grains disponibles aujourd'hui"])
+        }
+
+        let userRef = db.collection("users").document(currentUserId)
+        let userSnapshot = try await userRef.getDocument()
+        let userData = userSnapshot.data() ?? [:]
+        let todayKey = Self.dayKey(for: Date())
+        let storedKey = userData["dailyGrainSpentDate"] as? String ?? ""
+        let storedSpent = userData["dailyGrainSpent"] as? Double ?? 0.0
+        let currentSpent = (storedKey == todayKey) ? storedSpent : 0.0
+
+        if currentSpent + 1 > availableBudget {
+            throw NSError(domain: "VictoryManager", code: 402, userInfo: [NSLocalizedDescriptionKey: "Plus de grains disponibles aujourd'hui"])
         }
 
         // Mettre à jour la victoire
@@ -183,8 +315,72 @@ class VictoryManager: ObservableObject {
             "boostedBy": FieldValue.arrayUnion([currentUserId])
         ])
 
-        // TODO: Déduire 0.2 grain du booster et ajouter 0.2 grain au créateur
-        // TODO: Créer une notification pour le créateur
+        // Mettre à jour le budget consommé du jour
+        let newSpent = currentSpent + 1
+        try await userRef.updateData([
+            "dailyGrainSpent": newSpent,
+            "dailyGrainSpentDate": todayKey
+        ])
+
+        await MainActor.run {
+            if let index = self.victories.firstIndex(where: { $0.victoryId == victory.victoryId }) {
+                self.victories[index].boostCount += 1
+                self.victories[index].boostedBy.append(currentUserId)
+            }
+        }
+
+        return newSpent
+    }
+
+    // MARK: - Retirer 1 grain d'une victoire
+
+    func removeGrain(_ victory: Victory) async throws -> Double {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "VictoryManager", code: 401)
+        }
+
+        guard victory.boostedBy.contains(currentUserId) else {
+            throw NSError(domain: "VictoryManager", code: 409, userInfo: [NSLocalizedDescriptionKey: "Tu n'as pas donné de grain à cette victoire"])
+        }
+
+        let userRef = db.collection("users").document(currentUserId)
+        let userSnapshot = try await userRef.getDocument()
+        let userData = userSnapshot.data() ?? [:]
+        let todayKey = Self.dayKey(for: Date())
+        let storedKey = userData["dailyGrainSpentDate"] as? String ?? ""
+        let storedSpent = userData["dailyGrainSpent"] as? Double ?? 0.0
+        let currentSpent = (storedKey == todayKey) ? storedSpent : 0.0
+
+        // Mettre à jour la victoire
+        try await db.collection("victories").document(victory.victoryId).updateData([
+            "boostCount": FieldValue.increment(Int64(-1)),
+            "boostedBy": FieldValue.arrayRemove([currentUserId])
+        ])
+
+        // Mettre à jour le budget consommé du jour
+        let newSpent = max(currentSpent - 1, 0.0)
+        try await userRef.updateData([
+            "dailyGrainSpent": newSpent,
+            "dailyGrainSpentDate": todayKey
+        ])
+
+        await MainActor.run {
+            if let index = self.victories.firstIndex(where: { $0.victoryId == victory.victoryId }) {
+                self.victories[index].boostCount = max(self.victories[index].boostCount - 1, 0)
+                self.victories[index].boostedBy.removeAll { $0 == currentUserId }
+            }
+        }
+
+        return newSpent
+    }
+
+    private static func dayKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = AppTimeZone.calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = AppTimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     // MARK: - Commenter une victoire

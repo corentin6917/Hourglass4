@@ -6,10 +6,215 @@
 
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {onDocumentDeleted} = require("firebase-functions/v2/firestore");
+const {onCall, onRequest, HttpsError} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const {getStorage} = require("firebase-admin/storage");
 
 admin.initializeApp();
+
+const REGION = "europe-west1";
+const BACKFILL_SECRET = "backfill-1a94a6e1-9f9a-4e4a-9d36-5f93b1d8f5d2";
+
+exports.checkUsernameAvailability = onCall({region: REGION}, async (request) => {
+  const raw = (request.data?.username || "").toString().trim();
+  const normalized = raw.toLowerCase();
+
+  if (normalized.length < 3) {
+    return {available: false};
+  }
+
+  const doc = await admin.firestore()
+    .collection("usernames")
+    .doc(normalized)
+    .get();
+
+  return {available: !doc.exists};
+});
+
+exports.claimUsername = onCall({region: REGION}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Utilisateur non connecté.");
+  }
+
+  const raw = (request.data?.username || "").toString().trim();
+  const normalized = raw.toLowerCase();
+  const previousRaw = (request.data?.previousUsername || "").toString().trim();
+  const previous = previousRaw.toLowerCase();
+
+  if (normalized.length < 3) {
+    throw new HttpsError("invalid-argument", "Nom d'utilisateur invalide.");
+  }
+
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const desiredRef = db.collection("usernames").doc(normalized);
+  const userRef = db.collection("users").doc(uid);
+  const previousRef = previous && previous !== normalized
+    ? db.collection("usernames").doc(previous)
+    : null;
+
+  try {
+    const desiredSnap = await desiredRef.get();
+    if (desiredSnap.exists) {
+      const owner = desiredSnap.get("uid");
+      if (owner !== uid) {
+        throw new HttpsError("already-exists", "Nom d'utilisateur déjà pris.");
+      }
+      await desiredRef.set({
+        username: raw,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+    } else {
+      await desiredRef.create({
+        uid,
+        username: raw,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (previousRef) {
+      const previousSnap = await previousRef.get();
+      if (previousSnap.exists && previousSnap.get("uid") === uid) {
+        await previousRef.delete();
+      }
+    }
+
+    await userRef.set({
+      username: raw,
+      username_lower: normalized,
+      usernameLastChangedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+  } catch (error) {
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", error?.message || "Erreur interne.");
+  }
+
+  return {username: raw, usernameLower: normalized};
+});
+
+exports.backfillUsernames = onCall({region: REGION}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Utilisateur non connecté.");
+  }
+
+  const allowedEmails = new Set([
+    "soula.corentin@icloud.com",
+    "soula.corentin@gmail.com",
+  ]);
+
+  const tokenEmail = (request.auth.token?.email || "").toLowerCase();
+  const identityEmail = Array.isArray(request.auth.token?.firebase?.identities?.email)
+    ? String(request.auth.token.firebase.identities.email[0] || "").toLowerCase()
+    : "";
+  const email = tokenEmail || identityEmail;
+  if (!allowedEmails.has(email)) {
+    throw new HttpsError("permission-denied", "Accès refusé.");
+  }
+
+  const db = admin.firestore();
+  const usersSnap = await db.collection("users").get();
+
+  let created = 0;
+  let skipped = 0;
+  let conflicts = 0;
+
+  for (const doc of usersSnap.docs) {
+    const data = doc.data();
+    const usernameRaw = (data.username || "").toString().trim();
+    const usernameLower = (data.username_lower || usernameRaw.toLowerCase()).toString().trim();
+    const uid = (data.uid || doc.id).toString();
+
+    if (!usernameLower) {
+      skipped += 1;
+      continue;
+    }
+
+    const ref = db.collection("usernames").doc(usernameLower);
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) {
+        tx.set(ref, {
+          uid,
+          username: usernameRaw,
+          backfilledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return "created";
+      }
+      const owner = snap.get("uid");
+      if (owner === uid) {
+        tx.set(ref, {username: usernameRaw}, {merge: true});
+        return "skipped";
+      }
+      return "conflict";
+    });
+
+    if (result === "created") created += 1;
+    else if (result === "conflict") conflicts += 1;
+    else skipped += 1;
+  }
+
+  return {created, skipped, conflicts, total: usersSnap.size};
+});
+
+exports.backfillUsernamesHttp = onRequest(
+  {region: REGION, invoker: "public"},
+  async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  if (req.query.secret !== BACKFILL_SECRET) {
+    res.status(403).send("Forbidden");
+    return;
+  }
+
+  const db = admin.firestore();
+  const usersSnap = await db.collection("users").get();
+
+  let created = 0;
+  let skipped = 0;
+  let conflicts = 0;
+
+  for (const doc of usersSnap.docs) {
+    const data = doc.data();
+    const usernameRaw = (data.username || "").toString().trim();
+    const usernameLower = (data.username_lower || usernameRaw.toLowerCase()).toString().trim();
+    const uid = (data.uid || doc.id).toString();
+
+    if (!usernameLower) {
+      skipped += 1;
+      continue;
+    }
+
+    const ref = db.collection("usernames").doc(usernameLower);
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) {
+        tx.set(ref, {
+          uid,
+          username: usernameRaw,
+          backfilledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return "created";
+      }
+      const owner = snap.get("uid");
+      if (owner === uid) {
+        tx.set(ref, {username: usernameRaw}, {merge: true});
+        return "skipped";
+      }
+      return "conflict";
+    });
+
+    if (result === "created") created += 1;
+    else if (result === "conflict") conflicts += 1;
+    else skipped += 1;
+  }
+
+  res.json({created, skipped, conflicts, total: usersSnap.size});
+});
 
 /**
  * Fonction schedulée qui s'exécute tous les jours à 21h
@@ -21,7 +226,7 @@ admin.initializeApp();
 exports.cleanupExpiredVictories = onSchedule({
   schedule: "0 21 * * *",  // Tous les jours à 21h (heure de Paris)
   timeZone: "Europe/Paris",
-  region: "europe-west1",
+  region: REGION,
 }, async (event) => {
   const db = admin.firestore();
   const now = admin.firestore.Timestamp.now();
@@ -89,7 +294,7 @@ exports.cleanupExpiredVictories = onSchedule({
  */
 exports.deleteVictoryComments = onDocumentDeleted({
   document: "victories/{victoryId}",
-  region: "europe-west1",
+  region: REGION,
 }, async (event) => {
   const victoryId = event.params.victoryId;
   const db = admin.firestore();

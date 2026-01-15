@@ -16,6 +16,8 @@ struct RootView: View {
     @State private var isAuthenticated: Bool = false
     @State private var authListenerHandle: AuthStateDidChangeListenerHandle?
     @State private var showSplash = true
+    @ObservedObject private var notificationManager = NotificationPermissionManager.shared
+    @State private var showNotificationPrompt = false
 
     var body: some View {
         ZStack {
@@ -33,6 +35,12 @@ struct RootView: View {
                 SplashView()
                     .transition(.opacity)
             }
+
+            if showNotificationPrompt {
+                NotificationPermissionView(onDismiss: {
+                    showNotificationPrompt = false
+                })
+            }
         }
         .onAppear {
             // État initial
@@ -49,7 +57,12 @@ struct RootView: View {
                     withAnimation(.easeOut(duration: 0.3)) {
                         showSplash = false
                     }
+                    // Vérifier les notifications après le splash screen
+                    checkNotificationStatus()
                 }
+            } else {
+                // Vérifier immédiatement si le splash est déjà passé
+                checkNotificationStatus()
             }
         }
         .onDisappear {
@@ -57,6 +70,20 @@ struct RootView: View {
                 Auth.auth().removeStateDidChangeListener(handle)
                 authListenerHandle = nil
             }
+        }
+        .onChange(of: notificationManager.authorizationStatus) { _, newStatus in
+            // Cacher le prompt si l'utilisateur a autorisé ou refusé
+            if newStatus == .authorized || newStatus == .denied {
+                showNotificationPrompt = false
+            }
+        }
+    }
+
+    private func checkNotificationStatus() {
+        Task {
+            await notificationManager.checkAuthorizationStatus()
+            // Afficher le prompt seulement si pas encore demandé ou refusé
+            showNotificationPrompt = notificationManager.shouldShowPermissionPrompt
         }
     }
 }

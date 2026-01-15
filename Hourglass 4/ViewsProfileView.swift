@@ -8,6 +8,7 @@ import SwiftUI
 import UIKit
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseFunctions
 import MessageUI
 import UserNotifications
 
@@ -54,8 +55,10 @@ struct ProfileView: View {
                         showMessages = true
                     } label: {
                         ZStack(alignment: .topTrailing) {
-                            Image(systemName: "message.fill")
+                            Image(systemName: "message")
+                                .font(.system(size: 18, weight: .semibold))
                                 .foregroundStyle(.orange)
+                                .symbolRenderingMode(.hierarchical)
 
                             if unreadMessagesCount > 0 {
                                 Text("\(unreadMessagesCount)")
@@ -70,6 +73,8 @@ struct ProfileView: View {
                                     .offset(x: 8, y: -8)
                             }
                         }
+                        .padding(8)
+                        .contentShape(Circle())
                     }
                 }
 
@@ -432,6 +437,11 @@ struct MainProfileCard: View {
                     return partial + value
                 }
 
+                try await db.collection("users").document(currentUserId).setData(
+                    ["heritageTotal": total],
+                    merge: true
+                )
+
                 await MainActor.run {
                     heritageTotal = total
                     isLoadingHeritage = false
@@ -776,9 +786,6 @@ struct RealFriendCard: View {
                             .fontWeight(.semibold)
                         Text("@\(friend.username)")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Depuis \(friendSince)")
-                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
@@ -1469,6 +1476,12 @@ struct EditProfileView: View {
     @State private var isPublic = true
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var usernameAvailable: Bool? = nil
+    @State private var isCheckingUsername = false
+    @State private var originalUsernameLower = ""
+    @State private var originalUsername = ""
+    @State private var usernameLastChangedAt: Date? = nil
+    @State private var isBackfilling = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
 
@@ -1564,15 +1577,46 @@ struct EditProfileView: View {
             .padding(14)
             .background(fieldBackground)
 
-            HStack(spacing: 10) {
-                Image(systemName: "at")
-                    .foregroundStyle(.orange)
-                TextField("Nom d'utilisateur", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled(true)
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack(alignment: .trailing) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "at")
+                            .foregroundStyle(.orange)
+                        TextField("Nom d'utilisateur", text: $username)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .onChange(of: username) { _, _ in
+                                checkUsernameAvailability()
+                            }
+                    }
+                    .padding(14)
+                    .padding(.trailing, 40)
+                    .background(fieldBackground)
+
+                    if isCheckingUsername {
+                        ProgressView()
+                            .padding(.trailing, 12)
+                    } else if let available = usernameAvailable {
+                        Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundColor(available ? .green : .red)
+                            .padding(.trailing, 12)
+                    }
+                }
+
+                if let available = usernameAvailable, !available {
+                    Text("Ce nom d'utilisateur est déjà pris")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.leading, 4)
+                }
+
+                if let message = usernameChangeMessage() {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                }
             }
-            .padding(14)
-            .background(fieldBackground)
 
             HStack(spacing: 10) {
                 Image(systemName: "envelope")
@@ -1631,6 +1675,23 @@ struct EditProfileView: View {
 
             Toggle("Profil public", isOn: $isPublic)
                 .tint(.orange)
+
+            if isAdminEmail(email) {
+                Button {
+                    backfillUsernames()
+                } label: {
+                    HStack {
+                        if isBackfilling {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                        }
+                        Text("Synchroniser les usernames (admin)")
+                    }
+                }
+                .disabled(isBackfilling)
+                .font(.footnote)
+                .foregroundStyle(.orange)
+            }
         }
         .padding(18)
         .background(cardBackground)
@@ -1667,6 +1728,10 @@ struct EditProfileView: View {
                     selectedGender = data?.gender ?? .notSpecified
                     birthDate = data?.birthDate ?? Date()
                     isPublic = data?.isPublic ?? true
+                    originalUsername = data?.username ?? ""
+                    originalUsernameLower = originalUsername.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                    usernameLastChangedAt = data?.usernameLastChangedAt
+                    usernameAvailable = true
                     isLoading = false
                 }
             } catch {
@@ -1685,13 +1750,44 @@ struct EditProfileView: View {
             return
         }
 
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUsernameLower = trimmedUsername.lowercased()
+
+        guard !trimmedUsername.isEmpty else {
+            errorMessage = "Le nom d'utilisateur est obligatoire."
+            return
+        }
+        guard trimmedUsername.count >= 3 else {
+            errorMessage = "Le nom d'utilisateur doit contenir au moins 3 caractères."
+            return
+        }
+        if trimmedUsernameLower != originalUsernameLower, usernameAvailable != true {
+            errorMessage = "Ce nom d'utilisateur n'est pas disponible."
+            return
+        }
+
+        if trimmedUsernameLower != originalUsernameLower,
+           let lastChange = usernameLastChangedAt,
+           let nextAllowed = nextUsernameChangeDate(from: lastChange),
+           Date() < nextAllowed {
+            errorMessage = "Tu pourras changer ton nom d'utilisateur le \(formatDate(nextAllowed))."
+            return
+        }
+
         isSaving = true
         errorMessage = nil
         successMessage = nil
 
         Task {
             do {
-                // Mettre à jour le profil dans Firestore
+                if trimmedUsernameLower != originalUsernameLower {
+                    try await UserManager.shared.claimUsername(
+                        trimmedUsername,
+                        previousUsername: originalUsernameLower
+                    )
+                }
+
+                // Mettre à jour le profil dans Firestore (hors username)
                 let db = Firestore.firestore()
                 try await db.collection("users").document(currentUser.uid).updateData([
                     "displayName": fullName,
@@ -1701,8 +1797,17 @@ struct EditProfileView: View {
                 ])
 
                 await MainActor.run {
+                    UserManager.shared.cachedUsers.removeValue(forKey: currentUser.uid)
+                    if trimmedUsernameLower != originalUsernameLower {
+                        FindFriendViewModelV2.saveCurrentUsername(trimmedUsername)
+                        originalUsername = trimmedUsername
+                        originalUsernameLower = trimmedUsernameLower
+                        usernameLastChangedAt = Date()
+                    }
+
                     isSaving = false
                     successMessage = "Profil mis à jour !"
+                    NotificationCenter.default.post(name: .profileDidUpdate, object: nil)
 
                     // Fermer après 1.5 secondes
                     Task {
@@ -1713,10 +1818,135 @@ struct EditProfileView: View {
             } catch {
                 await MainActor.run {
                     isSaving = false
-                    errorMessage = "Erreur : \(error.localizedDescription)"
+                    errorMessage = "Erreur : \(mapFunctionsError(error))"
                 }
             }
         }
+    }
+
+    private func checkUsernameAvailability() {
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedUsername = trimmedUsername.lowercased()
+
+        guard trimmedUsername.count >= 3 else {
+            usernameAvailable = nil
+            isCheckingUsername = false
+            return
+        }
+
+        if normalizedUsername == originalUsernameLower {
+            usernameAvailable = true
+            isCheckingUsername = false
+            return
+        }
+
+        isCheckingUsername = true
+        usernameAvailable = nil
+
+        Task {
+            do {
+                let available = try await UserManager.shared.isUsernameAvailable(trimmedUsername)
+                await MainActor.run {
+                    isCheckingUsername = false
+                    usernameAvailable = available
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingUsername = false
+                    usernameAvailable = nil
+                }
+            }
+        }
+    }
+
+    private func backfillUsernames() {
+        guard !isBackfilling else { return }
+        isBackfilling = true
+        errorMessage = nil
+        successMessage = nil
+
+        Task {
+            do {
+                let result = try await UserManager.shared.backfillUsernames()
+                let created = intValue(result["created"])
+                let skipped = intValue(result["skipped"])
+                let conflicts = intValue(result["conflicts"])
+                await MainActor.run {
+                    isBackfilling = false
+                    successMessage = "Backfill OK: \(created) créés, \(skipped) ignorés, \(conflicts) conflits."
+                }
+            } catch {
+                await MainActor.run {
+                    isBackfilling = false
+                    errorMessage = "Erreur backfill: \(mapFunctionsError(error))"
+                }
+            }
+        }
+    }
+
+    private func mapFunctionsError(_ error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == FunctionsErrorDomain {
+            if let message = nsError.userInfo[NSLocalizedDescriptionKey] as? String, !message.isEmpty {
+                return message
+            }
+            if let details = nsError.userInfo[FunctionsErrorDetailsKey] as? String, !details.isEmpty {
+                return details
+            }
+            if let code = FunctionsErrorCode(rawValue: nsError.code) {
+                switch code {
+                case .alreadyExists:
+                    return "Ce nom d'utilisateur est déjà pris."
+                case .permissionDenied:
+                    return "Accès refusé."
+                case .unauthenticated:
+                    return "Utilisateur non connecté."
+                case .invalidArgument:
+                    return "Données invalides."
+                default:
+                    break
+                }
+            }
+            return "Erreur Functions (\(nsError.code))"
+        }
+        return "\(error.localizedDescription) (\(nsError.domain) \(nsError.code))"
+    }
+
+    private func usernameChangeMessage() -> String? {
+        guard let lastChange = usernameLastChangedAt else {
+            return "Changement possible tous les 6 mois."
+        }
+
+        guard let nextAllowed = nextUsernameChangeDate(from: lastChange) else {
+            return nil
+        }
+
+        if Date() < nextAllowed {
+            return "Changement possible tous les 6 mois. Prochain changement: \(formatDate(nextAllowed))."
+        }
+
+        return "Changement possible tous les 6 mois."
+    }
+
+    private func nextUsernameChangeDate(from lastChange: Date) -> Date? {
+        Calendar.current.date(byAdding: .month, value: 6, to: lastChange)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter.string(from: date)
+    }
+
+    private func intValue(_ value: Any?) -> Int {
+        if let number = value as? NSNumber { return number.intValue }
+        if let int = value as? Int { return int }
+        return 0
+    }
+
+    private func isAdminEmail(_ value: String) -> Bool {
+        let normalized = value.lowercased()
+        return normalized == "soula.corentin@icloud.com" || normalized == "soula.corentin@gmail.com"
     }
 }
 

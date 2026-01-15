@@ -300,8 +300,8 @@ extension Date {
 }
 
 extension Double {
-    /// Arrondit à 0.5 près (pour les valeurs de grains)
-    var roundedToHalf: Double {
-        (self * 2).rounded() / 2
+    /// Arrondit au grain supérieur (valeurs entières de grains)
+    var roundedUpGrain: Double {
+        ceil(self)
     }
 }

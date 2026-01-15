@@ -85,7 +85,7 @@ final class Goal {
     }
     
     func updateGrainValue() {
-        self.grainValue = baseValue * devaluationMultiplier
+        self.grainValue = ceil(baseValue * devaluationMultiplier)
     }
     
     func validate(with imageData: Data) {

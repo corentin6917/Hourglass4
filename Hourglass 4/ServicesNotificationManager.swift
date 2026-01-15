@@ -87,7 +87,7 @@ final class NotificationManager {
     private func scheduleEveningNotification() async throws {
         let content = UNMutableNotificationContent()
         content.title = "Le Fil s'est rafraîchi ✨"
-        content.body = "Tes amis ont partagé leurs accomplissements. Va les voir !"
+        content.body = "Tes amis ont partagé leurs victoires. Va les voir !"
         content.sound = soundsEnabled ? .default : nil
         content.badge = 1
 

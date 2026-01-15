@@ -35,13 +35,14 @@ class GoalManager: ObservableObject {
 
         print("✅ GoalManager: Utilisateur connecté - UID: \(currentUser.uid)")
 
+        let roundedBase = ceil(baseValue)
         let goal = FirebaseGoal(
             userId: currentUser.uid,
             title: title,
             goalDescription: description,
             category: category,
-            baseValue: baseValue,
-            grainValue: baseValue,
+            baseValue: roundedBase,
+            grainValue: roundedBase,
             status: .pending,
             createdAt: Date()
         )
@@ -110,17 +111,29 @@ class GoalManager: ObservableObject {
 
     // MARK: - Valider un objectif
 
-    func validateGoal(_ goal: FirebaseGoal, photoURL: String) async throws {
+    func validateGoal(_ goal: FirebaseGoal, photoURL: String, victoryId: String?) async throws {
         guard let currentUser = Auth.auth().currentUser else {
             throw NSError(domain: "GoalManager", code: 401)
         }
 
         // Mettre à jour le statut et sauvegarder l'URL de la photo
-        try await db.collection("goals").document(goal.goalId).updateData([
+        var updateData: [String: Any] = [
             "status": GoalStatus.completed.rawValue,
             "completedAt": Timestamp(date: Date()),
             "photoURL": photoURL
-        ])
+        ]
+
+        if let victoryId = victoryId {
+            updateData["victoryId"] = victoryId
+        }
+
+        try await db.collection("goals").document(goal.goalId).updateData(updateData)
+
+        let incrementValue = Double(Int(ceil(goal.grainValue)))
+        try await db.collection("users").document(currentUser.uid).setData(
+            ["heritageTotal": FieldValue.increment(incrementValue)],
+            merge: true
+        )
 
         // Recharger les objectifs
         await loadTodayGoals()
@@ -357,6 +370,37 @@ class GoalManager: ObservableObject {
             return 10.0
         }
     }
+
+    // MARK: - Charger les objectifs d'un jour spécifique
+
+    func loadGoalsForDate(_ date: Date) async -> [FirebaseGoal] {
+        guard let currentUser = Auth.auth().currentUser else {
+            print("❌ loadGoalsForDate: Utilisateur non connecté")
+            return []
+        }
+
+        let calendar = AppTimeZone.calendar
+        guard let startOfDay = calendar.date(from: calendar.dateComponents([.year, .month, .day], from: date)),
+              let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            return []
+        }
+
+        do {
+            let snapshot = try await db.collection("goals")
+                .whereField("userId", isEqualTo: currentUser.uid)
+                .whereField("createdAt", isGreaterThanOrEqualTo: Timestamp(date: startOfDay))
+                .whereField("createdAt", isLessThan: Timestamp(date: endOfDay))
+                .order(by: "createdAt", descending: false)
+                .getDocuments()
+
+            let goals = snapshot.documents.compactMap { FirebaseGoal.from(document: $0) }
+            print("✅ loadGoalsForDate: \(goals.count) objectifs trouvés pour le \(date)")
+            return goals
+        } catch {
+            print("❌ loadGoalsForDate: Erreur lors du chargement - \(error.localizedDescription)")
+            return []
+        }
+    }
 }
 
 // MARK: - Modèle Firebase pour les objectifs
@@ -374,6 +418,7 @@ struct FirebaseGoal: Identifiable, Codable {
     let createdAt: Date
     let completedAt: Date?
     let photoURL: String?  // URL de la photo de validation
+    let victoryId: String?
 
     init(
         goalId: String = UUID().uuidString,
@@ -386,7 +431,8 @@ struct FirebaseGoal: Identifiable, Codable {
         status: GoalStatus,
         createdAt: Date,
         completedAt: Date? = nil,
-        photoURL: String? = nil
+        photoURL: String? = nil,
+        victoryId: String? = nil
     ) {
         self.goalId = goalId
         self.userId = userId
@@ -399,6 +445,7 @@ struct FirebaseGoal: Identifiable, Codable {
         self.createdAt = createdAt
         self.completedAt = completedAt
         self.photoURL = photoURL
+        self.victoryId = victoryId
     }
 
     var dictionary: [String: Any] {
@@ -425,6 +472,10 @@ struct FirebaseGoal: Identifiable, Codable {
             dict["photoURL"] = photoURL
         }
 
+        if let victoryId = victoryId {
+            dict["victoryId"] = victoryId
+        }
+
         return dict
     }
 
@@ -446,6 +497,7 @@ struct FirebaseGoal: Identifiable, Codable {
 
         let completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
         let photoURL = data["photoURL"] as? String
+        let victoryId = data["victoryId"] as? String
 
         return FirebaseGoal(
             goalId: goalId,
@@ -453,12 +505,13 @@ struct FirebaseGoal: Identifiable, Codable {
             title: title,
             goalDescription: data["goalDescription"] as? String,
             category: category,
-            baseValue: baseValue,
-            grainValue: grainValue,
+            baseValue: ceil(baseValue),
+            grainValue: ceil(grainValue),
             status: status,
             createdAt: createdAtTimestamp.dateValue(),
             completedAt: completedAt,
-            photoURL: photoURL
+            photoURL: photoURL,
+            victoryId: victoryId
         )
     }
 }

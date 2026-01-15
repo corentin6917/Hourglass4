@@ -141,15 +141,9 @@ struct FriendProfileView: View {
 
         Task {
             do {
-                let snapshot = try await db.collection("goals")
-                    .whereField("userId", isEqualTo: friend.uid)
-                    .whereField("status", isEqualTo: GoalStatus.completed.rawValue)
-                    .getDocuments()
-
-                let total = snapshot.documents.reduce(0.0) { partial, doc in
-                    let value = doc.data()["grainValue"] as? Double ?? 0.0
-                    return partial + value
-                }
+                let document = try await db.collection("users").document(friend.uid).getDocument()
+                let data = document.data()
+                let total = data?["heritageTotal"] as? Double ?? friend.heritageTotal ?? 0.0
 
                 await MainActor.run {
                     heritageTotal = total

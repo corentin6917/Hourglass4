@@ -14,13 +14,13 @@ struct GoalSuggestionEngine {
     // MARK: - Valeur de Base par Catégorie
     
     private static let categoryBaseValues: [GoalCategory: ClosedRange<Double>] = [
-        .physical: 1.5...5.0,      // Sport et santé physique
+        .physical: 1.0...5.0,      // Sport et santé physique
         .social: 2.0...6.0,        // Relations sociales importantes
         .creative: 2.0...7.0,      // Création artistique valorisée
         .professional: 3.0...8.0,  // Travail et projets pros
-        .learning: 2.5...6.0,      // Apprentissage et études
-        .personal: 1.5...5.0,      // Développement personnel
-        .household: 0.5...2.0      // Tâches quotidiennes
+        .learning: 3.0...6.0,      // Apprentissage et études
+        .personal: 2.0...5.0,      // Développement personnel
+        .household: 1.0...2.0      // Tâches quotidiennes
     ]
     
     // MARK: - Calcul de la Valeur
@@ -65,8 +65,8 @@ struct GoalSuggestionEngine {
             adjustedValue *= keyword.multiplier
         }
         
-        // 5. Arrondir à 0.5 près
-        return round(adjustedValue * 2) / 2
+        // 5. Arrondir au grain supérieur
+        return ceil(adjustedValue)
     }
     
     // MARK: - Analyse des Mots-Clés
@@ -172,8 +172,8 @@ struct GoalSuggestionEngine {
         case .physical:
             return [
                 GoalSuggestion(title: "Courir 30 min", category: .physical, estimatedValue: 2.0),
-                GoalSuggestion(title: "Faire 20 pompes", category: .physical, estimatedValue: 1.5),
-                GoalSuggestion(title: "Marcher 10 000 pas", category: .physical, estimatedValue: 2.5)
+                GoalSuggestion(title: "Faire 20 pompes", category: .physical, estimatedValue: 2.0),
+                GoalSuggestion(title: "Marcher 10 000 pas", category: .physical, estimatedValue: 3.0)
             ]
         case .social:
             return [
@@ -183,7 +183,7 @@ struct GoalSuggestionEngine {
         case .creative:
             return [
                 GoalSuggestion(title: "Écrire 500 mots", category: .creative, estimatedValue: 3.0),
-                GoalSuggestion(title: "Dessiner 30 min", category: .creative, estimatedValue: 2.5)
+                GoalSuggestion(title: "Dessiner 30 min", category: .creative, estimatedValue: 3.0)
             ]
         case .professional:
             return [
@@ -193,17 +193,17 @@ struct GoalSuggestionEngine {
         case .learning:
             return [
                 GoalSuggestion(title: "Étudier 1h", category: .learning, estimatedValue: 3.0),
-                GoalSuggestion(title: "Lire 30 pages", category: .learning, estimatedValue: 2.5)
+                GoalSuggestion(title: "Lire 30 pages", category: .learning, estimatedValue: 3.0)
             ]
         case .personal:
             return [
                 GoalSuggestion(title: "Méditer 15 min", category: .personal, estimatedValue: 2.0),
-                GoalSuggestion(title: "Journaling", category: .personal, estimatedValue: 1.5)
+                GoalSuggestion(title: "Journaling", category: .personal, estimatedValue: 2.0)
             ]
         case .household:
             return [
                 GoalSuggestion(title: "Ranger la chambre", category: .household, estimatedValue: 1.0),
-                GoalSuggestion(title: "Faire la vaisselle", category: .household, estimatedValue: 0.5)
+                GoalSuggestion(title: "Faire la vaisselle", category: .household, estimatedValue: 1.0)
             ]
         }
     }

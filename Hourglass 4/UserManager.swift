@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseFunctions
 
 enum Gender: String, Codable, CaseIterable {
     case male = "Masculin"
@@ -25,12 +26,14 @@ struct UserData: Identifiable, Codable {
     let uid: String
     let email: String
     let username: String
-    let displayName: String?
-    let gender: Gender
-    let birthDate: Date
+    var displayName: String?
+    var gender: Gender
+    var birthDate: Date
     let createdAt: Date
-    let profileImageURL: String?
-    let isPublic: Bool
+    var profileImageURL: String?
+    var isPublic: Bool
+    var heritageTotal: Double?
+    var usernameLastChangedAt: Date?
 
     init(
         uid: String,
@@ -41,7 +44,9 @@ struct UserData: Identifiable, Codable {
         birthDate: Date,
         createdAt: Date,
         profileImageURL: String? = nil,
-        isPublic: Bool = true
+        isPublic: Bool = true,
+        heritageTotal: Double? = nil,
+        usernameLastChangedAt: Date? = nil
     ) {
         self.uid = uid
         self.email = email
@@ -52,6 +57,8 @@ struct UserData: Identifiable, Codable {
         self.createdAt = createdAt
         self.profileImageURL = profileImageURL
         self.isPublic = isPublic
+        self.heritageTotal = heritageTotal
+        self.usernameLastChangedAt = usernameLastChangedAt
     }
 
     var dictionary: [String: Any] {
@@ -63,11 +70,16 @@ struct UserData: Identifiable, Codable {
             "gender": gender.rawValue,
             "birthDate": Timestamp(date: birthDate),
             "createdAt": Timestamp(date: createdAt),
-            "isPublic": isPublic
+            "isPublic": isPublic,
+            "heritageTotal": heritageTotal ?? 0
         ]
 
         if let imageURL = profileImageURL {
             dict["profileImageURL"] = imageURL
+        }
+
+        if let usernameLastChangedAt {
+            dict["usernameLastChangedAt"] = Timestamp(date: usernameLastChangedAt)
         }
 
         return dict
@@ -77,6 +89,7 @@ struct UserData: Identifiable, Codable {
 class UserManager: ObservableObject {
     static let shared = UserManager()
     private let db = Firestore.firestore()
+    private let functions = Functions.functions(region: "europe-west1")
 
     @Published var cachedUsers: [String: UserData] = [:]
 
@@ -90,11 +103,37 @@ class UserManager: ObservableObject {
             throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Le nom d'utilisateur ne peut pas être vide."])
         }
 
-        let snapshot = try await db.collection("users")
-            .whereField("username_lower", isEqualTo: normalizedUsername)
-            .getDocuments()
+        let result = try await callFunction(
+            name: "checkUsernameAvailability",
+            data: ["username": normalizedUsername]
+        )
+        return result["available"] as? Bool ?? false
+    }
 
-        return snapshot.documents.isEmpty
+    // Réserver un nom d'utilisateur unique (Cloud Function)
+    func claimUsername(_ username: String, previousUsername: String?) async throws {
+        var data: [String: Any] = ["username": username]
+        if let previousUsername, !previousUsername.isEmpty {
+            data["previousUsername"] = previousUsername
+        }
+        _ = try await callFunction(name: "claimUsername", data: data)
+    }
+
+    func backfillUsernames() async throws -> [String: Any] {
+        try await callFunction(name: "backfillUsernames", data: [:])
+    }
+
+    private func callFunction(name: String, data: [String: Any]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { continuation in
+            functions.httpsCallable(name).call(data) { result, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                let payload = result?.data as? [String: Any] ?? [:]
+                continuation.resume(returning: payload)
+            }
+        }
     }
 
     // Créer un profil utilisateur dans Firestore
@@ -111,7 +150,10 @@ class UserManager: ObservableObject {
             "gender": gender.rawValue,
             "birthDate": Timestamp(date: birthDate),
             "createdAt": Timestamp(date: Date()),
-            "isPublic": true
+            "usernameLastChangedAt": Timestamp(date: Date()),
+            "isPublic": true,
+            "heritageTotal": 0,
+            "heritageBackfilled": true
         ]
 
         try await db.collection("users").document(uid).setData(userData)
@@ -133,8 +175,10 @@ class UserManager: ObservableObject {
         let gender = Gender(rawValue: genderString) ?? .notSpecified
         let birthDateTimestamp = data["birthDate"] as? Timestamp ?? Timestamp(date: Date())
         let createdAtTimestamp = data["createdAt"] as? Timestamp ?? Timestamp(date: Date())
+        let usernameLastChangedAt = (data["usernameLastChangedAt"] as? Timestamp)?.dateValue()
         let profileImageURL = data["profileImageURL"] as? String
         let isPublic = data["isPublic"] as? Bool ?? true
+        let heritageTotal = data["heritageTotal"] as? Double
 
         return UserData(
             uid: uid,
@@ -145,7 +189,9 @@ class UserManager: ObservableObject {
             birthDate: birthDateTimestamp.dateValue(),
             createdAt: createdAtTimestamp.dateValue(),
             profileImageURL: profileImageURL,
-            isPublic: isPublic
+            isPublic: isPublic,
+            heritageTotal: heritageTotal,
+            usernameLastChangedAt: usernameLastChangedAt
         )
     }
 
@@ -202,6 +248,17 @@ extension UserManager {
                 if !updates.isEmpty {
                     try await docRef.updateData(updates)
                 }
+
+                if (data["heritageBackfilled"] as? Bool) != true {
+                    let total = try await calculateHeritageTotal(for: user.uid)
+                    try await docRef.setData(
+                        [
+                            "heritageTotal": total,
+                            "heritageBackfilled": true
+                        ],
+                        merge: true
+                    )
+                }
             }
             return
         }
@@ -235,5 +292,17 @@ extension UserManager {
             gender: .notSpecified,
             birthDate: Date()
         )
+    }
+
+    private func calculateHeritageTotal(for userId: String) async throws -> Double {
+        let snapshot = try await db.collection("goals")
+            .whereField("userId", isEqualTo: userId)
+            .whereField("status", isEqualTo: GoalStatus.completed.rawValue)
+            .getDocuments()
+
+        return snapshot.documents.reduce(0.0) { partial, doc in
+            let value = doc.data()["grainValue"] as? Double ?? 0.0
+            return partial + value
+        }
     }
 }

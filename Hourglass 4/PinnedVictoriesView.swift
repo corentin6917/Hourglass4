@@ -39,7 +39,13 @@ struct PinnedVictoriesView: View {
                 } else {
                     VStack(spacing: 16) {
                         ForEach(victories) { victory in
-                            VictoryCard(victory: victory, onTapComments: { }, showHeader: false)
+                            VictoryCard(
+                                victory: victory,
+                                onTapComments: { },
+                                showHeader: false,
+                                availableGrainsToday: 0,
+                                canViewFeed: true
+                            ) { _ in }
                                 .frame(maxWidth: 520)
                         }
                     }
@@ -78,4 +84,3 @@ struct PinnedVictoriesView: View {
         }
     }
 }
-

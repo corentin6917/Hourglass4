@@ -18,6 +18,11 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
+    // Collection usernames - Réservations gérées via Cloud Functions (admin)
+    match /usernames/{username} {
+      allow read, write: if false;
+    }
+
     // Collection friendRequests - Lecture et écriture limitées
     match /friendRequests/{requestId} {
       allow read: if isAuthenticated() &&

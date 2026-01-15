@@ -207,7 +207,7 @@ private extension HourglassView {
             StatCardView(
                 icon: "sparkles",
                 title: "Héritage",
-                value: String(format: "%.1f", totalHeritage),
+                value: "\(Int(ceil(totalHeritage)))",
                 subtitle: "grains",
                 backgroundColor: Color(red: 1.0, green: 0.95, blue: 0.85),
                 foregroundColor: Color(red: 0.8, green: 0.5, blue: 0.2),
@@ -227,7 +227,7 @@ private extension HourglassView {
             StatCardView(
                 icon: "sparkle",
                 title: "Dispo",
-                value: String(format: "%.1f", availableGrains),
+                value: "\(Int(ceil(availableGrains)))",
                 subtitle: "grains",
                 backgroundColor: Color(red: 0.95, green: 0.9, blue: 1.0),
                 foregroundColor: Color.purple,
@@ -237,7 +237,7 @@ private extension HourglassView {
             StatCardView(
                 icon: "arrow.up.right",
                 title: "Aujour.",
-                value: String(format: "%.1f", todayProgress),
+                value: "\(Int(ceil(todayProgress)))",
                 subtitle: "/10",
                 backgroundColor: Color(red: 0.9, green: 1.0, blue: 0.95),
                 foregroundColor: Color.green,

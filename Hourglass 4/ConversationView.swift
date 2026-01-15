@@ -93,7 +93,7 @@ struct ConversationView: View {
                 imageURL: friend.profileImageURL,
                 username: friend.username,
                 size: 40,
-                gradientColors: [.purple, .purple.opacity(0.6)]
+                gradientColors: [.orange, .orange.opacity(0.6)]
             )
 
             // Nom
@@ -134,7 +134,7 @@ struct ConversationView: View {
             } label: {
                 Image(systemName: isSending ? "hourglass" : "arrow.up.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(canSend ? .purple : .secondary)
+                    .foregroundStyle(canSend ? .orange : .secondary)
             }
             .disabled(!canSend)
         }
@@ -201,7 +201,7 @@ struct MessageBubble: View {
                     .padding(.vertical, 10)
                     .background {
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(isFromCurrentUser ? Color.purple : Color(uiColor: .systemGray5))
+                            .fill(isFromCurrentUser ? Color.orange : Color(uiColor: .systemGray5))
                     }
                     .foregroundStyle(isFromCurrentUser ? .white : .primary)
 

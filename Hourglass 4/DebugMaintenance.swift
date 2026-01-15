@@ -4,8 +4,6 @@
 import Foundation
 #if DEBUG
 import FirebaseFirestore
-import FirebaseDataConnect
-import Default
 
 /// Utilitaires pour nettoyer des usernames orphelins en DEV
 public enum DebugMaintenance {
@@ -21,24 +19,12 @@ public enum DebugMaintenance {
         }
     }
 
-    /// Supprime l'utilisateur côté Firebase Data Connect via l'opération générée
-    public static func freeUsernameInDataConnect(_ username: String) async throws {
-        let _ = try await DataConnect.defaultConnector
-            .deleteUserByUsernameMutation
-            .execute(username: username)
-    }
-
     /// Tente de libérer le username partout (Firestore + Data Connect)
     public static func freeUsernameEverywhere(_ username: String) async {
         do {
             try await freeUsernameInFirestore(username)
         } catch {
             print("[DebugMaintenance] Firestore cleanup error: \(error)")
-        }
-        do {
-            try await freeUsernameInDataConnect(username)
-        } catch {
-            print("[DebugMaintenance] Data Connect cleanup error: \(error)")
         }
     }
 }

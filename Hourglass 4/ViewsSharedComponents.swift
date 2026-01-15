@@ -117,7 +117,7 @@ struct PotentialCardView: View {
                     
                     Spacer()
                     
-                    Text(String(format: "%.1f / %.0f grains", allocated, total))
+                    Text("\(Int(ceil(allocated))) / \(Int(ceil(total))) grains")
                         .font(.subheadline)
                         .foregroundStyle(.orange)
                 }
@@ -140,7 +140,7 @@ struct PotentialCardView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
-                    Text("Il te reste \(String(format: "%.1f", remaining)) grains à allouer")
+                    Text("Il te reste \(Int(ceil(remaining))) grains à allouer")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

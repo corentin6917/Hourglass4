@@ -18,7 +18,7 @@ struct MainTabView: View {
             // Onglet 1: Fil des Victoires
             VictoryFeedView()
                 .tabItem {
-                    Image(systemName: selectedTab == 0 ? "trophy.fill" : "trophy")
+                    Image(systemName: "trophy")
                     Text("Fil")
                 }
                 .tag(0)

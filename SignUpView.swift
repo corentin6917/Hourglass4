@@ -390,6 +390,9 @@ struct SignUpView: View {
             // IMPORTANT: Créer le profil dans Data Connect
             Task {
                 do {
+                    // Réserver le nom d'utilisateur de façon unique
+                    try await UserManager.shared.claimUsername(u, previousUsername: nil)
+
                     // Créer le profil utilisateur dans Firestore (users/{uid})
                     try await UserManager.shared.createUserProfile(
                         uid: user.uid,
@@ -416,9 +419,10 @@ struct SignUpView: View {
                         // L'utilisateur sera automatiquement connecté et redirigé par RootView
                     }
                 } catch {
+                    try? await user.delete()
                     await MainActor.run {
                         isLoading = false
-                        errorMessage = "Compte créé, mais erreur lors de la sauvegarde du profil: \(error.localizedDescription)"
+                        errorMessage = "Erreur lors de la création du profil: \(error.localizedDescription)"
                     }
                 }
             }

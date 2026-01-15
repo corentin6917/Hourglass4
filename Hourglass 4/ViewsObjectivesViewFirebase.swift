@@ -63,7 +63,7 @@ struct ObjectivesViewFirebase: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Objectifs")
-                                    .font(.system(size: 34, weight: .bold))
+                                    .font(.system(size: 28, weight: .bold))
                                     .foregroundStyle(
                                         LinearGradient(
                                             colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
@@ -79,12 +79,13 @@ struct ObjectivesViewFirebase: View {
 
                             Spacer()
 
-                            CurrentUserAvatarButton(size: 42) {
+                            CurrentUserAvatarButton(size: 44) {
                                 showProfile = true
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 24)
-                        .padding(.top, 12)
+                        .padding(.top, 16)
 
                         ObjectiveBudgetCard(
                             allocated: potentialAllocated,
@@ -112,8 +113,25 @@ struct ObjectivesViewFirebase: View {
                             .padding(.horizontal, 24)
                             .background {
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color(uiColor: .systemBackground))
-                                    .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
+                                    .fill(.ultraThinMaterial)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color.white.opacity(0.78),
+                                                        Color.orange.opacity(0.16)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                    )
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                                    }
+                                    .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 12)
                             }
                             .padding(.horizontal, 24)
                         } else {
@@ -341,13 +359,13 @@ struct ObjectiveBudgetCard: View {
             GrainDotsRow(total: totalCount, filled: allocatedCount, color: .orange)
 
             HStack {
-                Text("Alloués: \(String(format: "%.1f", allocated))")
+                Text("Alloués: \(Int(ceil(allocated)))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
-                Text("Restant: \(String(format: "%.1f", remaining))")
+                Text("Restant: \(Int(ceil(remaining)))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -355,8 +373,25 @@ struct ObjectiveBudgetCard: View {
         .padding(20)
         .background {
             RoundedRectangle(cornerRadius: 22)
-                .fill(Color(uiColor: .systemBackground))
-                .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
+                .fill(.ultraThinMaterial)
+                .background(
+                    RoundedRectangle(cornerRadius: 22)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.78),
+                                    Color.orange.opacity(0.16)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22)
+                        .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 12)
         }
     }
 }

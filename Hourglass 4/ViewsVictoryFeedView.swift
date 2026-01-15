@@ -22,7 +22,9 @@ struct VictoryFeedView: View {
     @State private var selectedVictory: Victory?
     @State private var showComments = false
     @State private var selectedFilter: VictoryFilter = .friends
-    @State private var showInfo = false
+    @State private var showFeedInfo = false
+    @State private var showGrainInfo = false
+    @State private var dailyGrainSpent: Double = 0.0
 
     private var groupedVictories: [UserVictoryGroup] {
         let grouped = Dictionary(grouping: victoryManager.victories) { $0.userId }
@@ -50,34 +52,100 @@ struct VictoryFeedView: View {
         goalManager.todayGoals.contains { $0.status == .completed }
     }
 
+    private var grainsEarnedToday: Double {
+        goalManager.todayGoals
+            .filter { $0.status == .completed }
+            .reduce(0.0) { $0 + $1.grainValue }
+    }
+
+    private var availableGrainsToday: Double {
+        max(grainsEarnedToday - dailyGrainSpent, 0)
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Header minimaliste
-                VStack(spacing: 10) {
+            ZStack {
+                // Background gradient élégant
+                LinearGradient(
+                    colors: [
+                        Color.white,
+                        Color.orange.opacity(0.05)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    // Header minimaliste
+                    VStack(spacing: 10) {
                     HStack {
-                        Text("Fil des Victoires")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showFeedInfo.toggle()
+                            }
+                        } label: {
+                            Text("Fil des Victoires")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 )
-                            )
+                        }
+                        .buttonStyle(.plain)
 
                         Spacer()
-
-                        Button {
-                            showInfo = true
-                        } label: {
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundStyle(.orange)
-                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
+
+                    if showFeedInfo {
+                        VStack(spacing: 0) {
+                            InfoBubbleTriangleUp()
+                                .fill(Color(uiColor: .systemBackground))
+                                .frame(width: 20, height: 10)
+                                .shadow(color: .orange.opacity(0.15), radius: 4, x: 0, y: -2)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                        .font(.subheadline)
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+
+                                    Text("Photos éphémères")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+
+                                Text("Le feed se rafraîchit chaque soir à 21h avec les photos de la journée. Validation possible jusqu'à 20h59.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(14)
+                            .background {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(uiColor: .systemBackground))
+                                    .shadow(color: .orange.opacity(0.25), radius: 16, x: 0, y: 8)
+                            }
+                        }
+                        .frame(maxWidth: 300)
+                        .transition(.scale.combined(with: .opacity))
+                        .padding(.horizontal, 20)
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showFeedInfo = false
+                            }
+                        }
+                    }
 
                     HStack(spacing: 10) {
                         FilterButton(
@@ -115,45 +183,43 @@ struct VictoryFeedView: View {
                                 ForEach(groupedVictories) { group in
                                     UserVictoryGroupView(
                                         group: group,
-                                        userManager: userManager
-                                    ) { victory in
-                                        selectedVictory = victory
-                                        showComments = true
-                                    }
+                                        userManager: userManager,
+                                        availableGrainsToday: availableGrainsToday,
+                                        canViewFeed: canViewFeed,
+                                        onTapComments: { victory in
+                                            selectedVictory = victory
+                                            showComments = true
+                                        },
+                                        onGrainSpent: { newSpent in
+                                            dailyGrainSpent = newSpent
+                                        }
+                                    )
                                 }
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                         }
                     }
-                    .blur(radius: canViewFeed ? 0 : 12)
-                    .animation(.easeInOut(duration: 0.2), value: canViewFeed)
-                    .allowsHitTesting(canViewFeed)
-
-                    if !canViewFeed {
-                        FeedLockOverlay {
-                            NotificationCenter.default.post(name: .switchToObjectivesTab, object: nil)
-                        }
-                    }
                 }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .navigationBar)
-            .refreshable {
-                await goalManager.loadTodayGoals()
-                await loadFeed()
-            }
-            .task {
-                await goalManager.loadTodayGoals()
-                await loadFeed()
-            }
-            .sheet(item: $selectedVictory) { victory in
-                VictoryDetailView(victory: victory)
-            }
-            .alert("Photos éphémères", isPresented: $showInfo) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Le feed se rafraîchit chaque soir à 21h avec les photos de la journée. Validation possible jusqu'à 20h59.")
+                }
+                .safeAreaInset(edge: .bottom) {
+                    grainBadge
+                }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
+                .refreshable {
+                    await goalManager.loadTodayGoals()
+                    await loadDailyGrainSpent()
+                    await loadFeed()
+                }
+                .task {
+                    await goalManager.loadTodayGoals()
+                    await loadDailyGrainSpent()
+                    await loadFeed()
+                }
+                .sheet(item: $selectedVictory) { victory in
+                    VictoryDetailView(victory: victory)
+                }
             }
         }
     }
@@ -217,6 +283,90 @@ struct VictoryFeedView: View {
             }
         }
     }
+
+    private func loadDailyGrainSpent() async {
+        do {
+            dailyGrainSpent = try await victoryManager.fetchDailyGrainSpent()
+        } catch {
+            dailyGrainSpent = 0.0
+        }
+    }
+
+    private var grainBadge: some View {
+        VStack(spacing: 6) {
+            if showGrainInfo {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "hourglass.circle.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+
+                            Text("Grains disponibles")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+
+                        Text("Ce sont les grains gagnés aujourd’hui. Ils servent à récompenser tes amis (1 grain max par post). Le budget se remet à zéro à minuit.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12)
+                    .background {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(uiColor: .systemBackground))
+                            .shadow(color: .orange.opacity(0.18), radius: 12, x: 0, y: 6)
+                    }
+
+                    InfoBubbleTriangle()
+                        .fill(Color(uiColor: .systemBackground))
+                        .frame(width: 18, height: 9)
+                        .shadow(color: .orange.opacity(0.12), radius: 4, x: 0, y: 2)
+                }
+                .frame(maxWidth: 260)
+                .transition(.scale.combined(with: .opacity))
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showGrainInfo = false
+                    }
+                }
+            }
+
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    showGrainInfo.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.orange)
+                    Text("Grains dispo \(Int(availableGrainsToday))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.orange.opacity(0.07))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 8)
+    }
 }
 
 // MARK: - Grouped Feed
@@ -233,8 +383,27 @@ struct UserVictoryGroup: Identifiable {
 struct UserVictoryGroupView: View {
     let group: UserVictoryGroup
     @ObservedObject var userManager: UserManager
+    let availableGrainsToday: Double
+    let canViewFeed: Bool
     let onTapComments: (Victory) -> Void
+    let onGrainSpent: (Double) -> Void
     @State private var selectedFriend: UserData?
+
+    init(
+        group: UserVictoryGroup,
+        userManager: UserManager,
+        availableGrainsToday: Double,
+        canViewFeed: Bool = true,
+        onTapComments: @escaping (Victory) -> Void,
+        onGrainSpent: @escaping (Double) -> Void
+    ) {
+        self.group = group
+        self._userManager = ObservedObject(wrappedValue: userManager)
+        self.availableGrainsToday = availableGrainsToday
+        self.canViewFeed = canViewFeed
+        self.onTapComments = onTapComments
+        self.onGrainSpent = onGrainSpent
+    }
 
     private var resolvedProfileImageURL: String? {
         let cached = userManager.cachedUsers[group.userId]?.profileImageURL
@@ -298,7 +467,9 @@ struct UserVictoryGroupView: View {
                     ForEach(group.victories) { victory in
                         VictoryCard(victory: victory, onTapComments: {
                             onTapComments(victory)
-                        }, showHeader: false)
+                        }, showHeader: false, availableGrainsToday: availableGrainsToday, canViewFeed: canViewFeed) { newSpent in
+                            onGrainSpent(newSpent)
+                        }
                         .frame(width: 320)
                         .scrollTargetLayout()
                     }
@@ -341,11 +512,30 @@ struct VictoryCard: View {
     let victory: Victory
     let onTapComments: () -> Void
     var showHeader: Bool = true
+    let availableGrainsToday: Double
+    let canViewFeed: Bool
+    let onGrainSpent: (Double) -> Void
 
     @StateObject private var userManager = UserManager.shared
     @State private var isBoosting = false
     @State private var showBoostError: String?
     @State private var showPhoto = false
+
+    init(
+        victory: Victory,
+        onTapComments: @escaping () -> Void,
+        showHeader: Bool = true,
+        availableGrainsToday: Double,
+        canViewFeed: Bool = true,
+        onGrainSpent: @escaping (Double) -> Void
+    ) {
+        self.victory = victory
+        self.onTapComments = onTapComments
+        self.showHeader = showHeader
+        self.availableGrainsToday = availableGrainsToday
+        self.canViewFeed = canViewFeed
+        self.onGrainSpent = onGrainSpent
+    }
 
     private var resolvedProfileImageURL: String? {
         let cached = userManager.cachedUsers[victory.userId]?.profileImageURL
@@ -418,8 +608,16 @@ struct VictoryCard: View {
                     .foregroundStyle(.primary)
             }
 
+            if let comment = victory.comment, !comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(comment)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
             // Photo de l'accomplissement
             Button {
+                guard canViewFeed else { return }
                 showPhoto = true
             } label: {
                 AsyncImage(url: URL(string: victory.photoURL)) { phase in
@@ -453,19 +651,30 @@ struct VictoryCard: View {
                         EmptyView()
                     }
                 }
+                .blur(radius: canViewFeed ? 0 : 16)
+                .overlay {
+                    if !canViewFeed {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.black.opacity(0.12))
+
+                        FeedLockOverlay(compact: true) {
+                            NotificationCenter.default.post(name: .switchToObjectivesTab, object: nil)
+                        }
+                    }
+                }
             }
             .buttonStyle(.plain)
-
+        
             // Actions
             HStack(spacing: 20) {
-                // Bouton Boost
+                // Don 1 grain
                 Button {
                     Task {
                         await boostVictory()
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: victory.boostedBy.contains(Auth.auth().currentUser?.uid ?? "") ? "star.fill" : "star")
+                        Image(systemName: victory.boostedBy.contains(Auth.auth().currentUser?.uid ?? "") ? "circle.fill" : "circle")
                             .foregroundStyle(.orange)
 
                         Text("\(victory.boostCount)")
@@ -491,9 +700,10 @@ struct VictoryCard: View {
             }
 
             if let error = showBoostError {
+                let isNoGrains = error == "Plus de grains disponibles aujourd'hui"
                 Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(isNoGrains ? .footnote.weight(.semibold) : .caption)
+                    .foregroundStyle(isNoGrains ? Color.orange.opacity(0.85) : .red)
             }
         }
         .padding()
@@ -517,7 +727,16 @@ struct VictoryCard: View {
         showBoostError = nil
 
         do {
-            try await VictoryManager.shared.boostVictory(victory)
+            let currentUserId = Auth.auth().currentUser?.uid ?? ""
+            let alreadyBoosted = victory.boostedBy.contains(currentUserId)
+            let newSpent: Double
+
+            if alreadyBoosted {
+                newSpent = try await VictoryManager.shared.removeGrain(victory)
+            } else {
+                newSpent = try await VictoryManager.shared.donateGrain(victory, availableBudget: availableGrainsToday)
+            }
+            onGrainSpent(newSpent)
         } catch {
             showBoostError = error.localizedDescription
         }
@@ -580,13 +799,26 @@ struct VictoryDetailView: View {
     @State private var comments: [VictoryComment] = []
     @State private var newCommentText = ""
     @State private var isPostingComment = false
+    @State private var editableComment = ""
+    @State private var savedComment = ""
+    @State private var isSavingComment = false
+    @State private var commentError: String?
     @State private var isPinned = false
     @State private var pinError: String?
     @State private var isUpdatingPin = false
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isCommentFocused: Bool
 
     private var isOwner: Bool {
         victory.userId == Auth.auth().currentUser?.uid
+    }
+    
+    private var trimmedEditableComment: String {
+        editableComment.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private var trimmedSavedComment: String {
+        savedComment.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -613,6 +845,67 @@ struct VictoryDetailView: View {
                 // Liste des commentaires
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
+                        if isOwner {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "quote.bubble")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.orange)
+                                    Text("Ton commentaire")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    if isSavingComment {
+                                        ProgressView()
+                                    }
+                                }
+
+                                TextField("Ajoute un commentaire pour ta victoire", text: $editableComment, axis: .vertical)
+                                    .lineLimit(2...4)
+                                    .submitLabel(.done)
+                                    .focused($isCommentFocused)
+                                    .onSubmit { isCommentFocused = false }
+                                    .padding(12)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .fill(Color.orange.opacity(0.08))
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 14)
+                                                    .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+                                            }
+                                    }
+
+                                Button {
+                                    Task {
+                                        await saveVictoryComment()
+                                    }
+                                } label: {
+                                    Text(trimmedSavedComment.isEmpty ? "Ajouter" : "Mettre à jour")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(Color.orange)
+                                        }
+                                }
+                                .disabled(isSavingComment || trimmedEditableComment == trimmedSavedComment)
+
+                                if let commentError {
+                                    Text(commentError)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                            .padding(12)
+                            .background {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(uiColor: .secondarySystemBackground))
+                            }
+                        }
+
                         ForEach(comments) { comment in
                             CommentRow(comment: comment)
                         }
@@ -660,11 +953,18 @@ struct VictoryDetailView: View {
                         }
                         .disabled(isUpdatingPin)
                     }
+                    ToolbarItem(placement: .keyboard) {
+                        Button("Terminer") {
+                            isCommentFocused = false
+                        }
+                    }
                 }
             }
             .task {
                 await loadComments()
                 await loadPinnedState()
+                savedComment = victory.comment ?? ""
+                editableComment = savedComment
             }
             .alert("Épingler", isPresented: .constant(pinError != nil)) {
                 Button("OK") { pinError = nil }
@@ -696,6 +996,26 @@ struct VictoryDetailView: View {
         }
 
         isPostingComment = false
+    }
+    
+    private func saveVictoryComment() async {
+        isSavingComment = true
+        commentError = nil
+
+        do {
+            let updated = try await VictoryManager.shared.updateVictoryComment(victory, comment: editableComment)
+            await MainActor.run {
+                savedComment = updated.comment ?? ""
+                editableComment = savedComment
+                isCommentFocused = false
+            }
+        } catch {
+            await MainActor.run {
+                commentError = error.localizedDescription
+            }
+        }
+
+        isSavingComment = false
     }
 
     private func loadPinnedState() async {
@@ -848,27 +1168,28 @@ struct FilterButton: View {
 }
 
 struct FeedLockOverlay: View {
+    var compact: Bool = false
     let onTapAction: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: compact ? 8 : 16) {
             ZStack {
                 Circle()
                     .fill(Color.orange.opacity(0.15))
-                    .frame(width: 72, height: 72)
+                    .frame(width: compact ? 44 : 72, height: compact ? 44 : 72)
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: compact ? 18 : 28, weight: .semibold))
                     .foregroundStyle(.orange)
             }
 
             VStack(spacing: 6) {
                 Text("Accomplis tes objectifs")
-                    .font(.headline)
+                    .font(compact ? .footnote : .headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
 
                 Text("Valide au moins un objectif aujourd’hui pour voir les victoires de tes amis.")
-                    .font(.subheadline)
+                    .font(compact ? .caption2 : .subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -877,11 +1198,11 @@ struct FeedLockOverlay: View {
                 onTapAction()
             } label: {
                 Text("Aller aux objectifs")
-                    .font(.subheadline)
+                    .font(compact ? .caption2 : .subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, compact ? 10 : 18)
+                    .padding(.vertical, compact ? 6 : 10)
                     .background(
                         LinearGradient(
                             colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
@@ -893,8 +1214,8 @@ struct FeedLockOverlay: View {
                     .shadow(color: .orange.opacity(0.25), radius: 10, x: 0, y: 6)
             }
         }
-        .padding(24)
-        .frame(maxWidth: 320)
+        .padding(compact ? 12 : 24)
+        .frame(maxWidth: compact ? 200 : 320)
         .background(
             RoundedRectangle(cornerRadius: 22)
                 .fill(Color(uiColor: .systemBackground).opacity(0.95))

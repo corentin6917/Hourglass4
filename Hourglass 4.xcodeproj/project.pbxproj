@@ -3,60 +3,41 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		1F6BF0432EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F6BF0422EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift */; };
-		1FF0BB472EDD96CB005FE2B5 /* Default in Frameworks */ = {isa = PBXBuildFile; productRef = 1FF0BB462EDD96CB005FE2B5 /* Default */; };
-		1FFE0C3C2ED8618E009E1C8E /* FirebaseAI in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C3B2ED8618E009E1C8E /* FirebaseAI */; };
-		1FFE0C3E2ED8618E009E1C8E /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C3D2ED8618E009E1C8E /* FirebaseAILogic */; };
-		1FFE0C402ED8618E009E1C8E /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C3F2ED8618E009E1C8E /* FirebaseAnalytics */; };
-		1FFE0C422ED8618E009E1C8E /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C412ED8618E009E1C8E /* FirebaseAnalyticsCore */; };
-		1FFE0C442ED8618E009E1C8E /* FirebaseAnalyticsIdentitySupport in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C432ED8618E009E1C8E /* FirebaseAnalyticsIdentitySupport */; };
-		1FFE0C462ED8618E009E1C8E /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C452ED8618E009E1C8E /* FirebaseAppCheck */; };
-		1FFE0C482ED8618E009E1C8E /* FirebaseAppDistribution-Beta in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C472ED8618E009E1C8E /* FirebaseAppDistribution-Beta */; };
-		1FFE0C4A2ED8618E009E1C8E /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C492ED8618E009E1C8E /* FirebaseAuth */; };
-		1FFE0C4C2ED8618E009E1C8E /* FirebaseAuthCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C4B2ED8618E009E1C8E /* FirebaseAuthCombine-Community */; };
-		1FFE0C4E2ED8618E009E1C8E /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C4D2ED8618E009E1C8E /* FirebaseCore */; };
-		1FFE0C502ED8618E009E1C8E /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C4F2ED8618E009E1C8E /* FirebaseCrashlytics */; };
-		1FFE0C522ED8618E009E1C8E /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C512ED8618E009E1C8E /* FirebaseDatabase */; };
-		1FFE0C542ED8618E009E1C8E /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C532ED8618E009E1C8E /* FirebaseFirestore */; };
-		1FFE0C562ED8618E009E1C8E /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C552ED8618E009E1C8E /* FirebaseFirestoreCombine-Community */; };
-		1FFE0C582ED8618E009E1C8E /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C572ED8618E009E1C8E /* FirebaseFunctions */; };
-		1FFE0C5A2ED8618E009E1C8E /* FirebaseFunctionsCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C592ED8618E009E1C8E /* FirebaseFunctionsCombine-Community */; };
-		1FFE0C5C2ED8618E009E1C8E /* FirebaseInAppMessaging-Beta in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C5B2ED8618E009E1C8E /* FirebaseInAppMessaging-Beta */; };
-		1FFE0C5E2ED8618E009E1C8E /* FirebaseInstallations in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C5D2ED8618E009E1C8E /* FirebaseInstallations */; };
-		1FFE0C602ED8618E009E1C8E /* FirebaseMLModelDownloader in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C5F2ED8618E009E1C8E /* FirebaseMLModelDownloader */; };
-		1FFE0C622ED8618E009E1C8E /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C612ED8618E009E1C8E /* FirebaseMessaging */; };
-		1FFE0C642ED8618E009E1C8E /* FirebasePerformance in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C632ED8618E009E1C8E /* FirebasePerformance */; };
-		1FFE0C662ED8618E009E1C8E /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C652ED8618E009E1C8E /* FirebaseRemoteConfig */; };
-		1FFE0C682ED8618E009E1C8E /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C672ED8618E009E1C8E /* FirebaseStorage */; };
-		1FFE0C6A2ED8618E009E1C8E /* FirebaseStorageCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 1FFE0C692ED8618E009E1C8E /* FirebaseStorageCombine-Community */; };
 		1FFE0CAA2ED89253009E1C8E /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CA92ED89253009E1C8E /* RootView.swift */; };
 		1FFE0CAC2ED8931C009E1C8E /* AppleSignInHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAB2ED8931C009E1C8E /* AppleSignInHelper.swift */; };
-		1FFE0CAE2ED893C6009E1C8E /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */; };
 		1FFE0CB02ED893E0009E1C8E /* LoginView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */; };
 		1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */; };
-		4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */; };
+		227DD97EC69EAD09E01F9CD7 /* Pods_Hourglass_4.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C69CF1BD5D626475E33B0D2C /* Pods_Hourglass_4.framework */; };
 		457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		07E66D1CE434E6DC9445686B /* Pods-Hourglass 4.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hourglass 4.debug.xcconfig"; path = "Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4.debug.xcconfig"; sourceTree = "<group>"; };
 		1F6BF0422EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewsSimpleRealisticHourglass.swift; sourceTree = "<group>"; };
 		1FFE0BFF2ED8607A009E1C8E /* Hourglass 4.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Hourglass 4.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1FFE0CA92ED89253009E1C8E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1FFE0CAB2ED8931C009E1C8E /* AppleSignInHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInHelper.swift; sourceTree = "<group>"; };
-		1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LoginView 2.swift"; sourceTree = "<group>"; };
 		1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindFriendViewModelV2.swift; sourceTree = "<group>"; };
-		AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseDataConnectHelper.swift; sourceTree = "<group>"; };
+		C69CF1BD5D626475E33B0D2C /* Pods_Hourglass_4.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Hourglass_4.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		F199BCEFFF3735BD0C1582B3 /* Pods-Hourglass 4.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hourglass 4.release.xcconfig"; path = "Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1FF884062EB2600E00E08310 /* Hourglass 4 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
 			path = "Hourglass 4";
 			sourceTree = "<group>";
 		};
@@ -67,37 +48,21 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1FFE0C482ED8618E009E1C8E /* FirebaseAppDistribution-Beta in Frameworks */,
-				1FFE0C542ED8618E009E1C8E /* FirebaseFirestore in Frameworks */,
-				1FFE0C4C2ED8618E009E1C8E /* FirebaseAuthCombine-Community in Frameworks */,
-				1FFE0C5E2ED8618E009E1C8E /* FirebaseInstallations in Frameworks */,
-				1FFE0C3E2ED8618E009E1C8E /* FirebaseAILogic in Frameworks */,
-				1FFE0C442ED8618E009E1C8E /* FirebaseAnalyticsIdentitySupport in Frameworks */,
-				1FFE0C5C2ED8618E009E1C8E /* FirebaseInAppMessaging-Beta in Frameworks */,
-				1FFE0C3C2ED8618E009E1C8E /* FirebaseAI in Frameworks */,
-				1FFE0C502ED8618E009E1C8E /* FirebaseCrashlytics in Frameworks */,
-				1FFE0C5A2ED8618E009E1C8E /* FirebaseFunctionsCombine-Community in Frameworks */,
-				1FFE0C6A2ED8618E009E1C8E /* FirebaseStorageCombine-Community in Frameworks */,
-				1FFE0C522ED8618E009E1C8E /* FirebaseDatabase in Frameworks */,
-				1FFE0C682ED8618E009E1C8E /* FirebaseStorage in Frameworks */,
-				1FF0BB472EDD96CB005FE2B5 /* Default in Frameworks */,
-				1FFE0C662ED8618E009E1C8E /* FirebaseRemoteConfig in Frameworks */,
-				1FFE0C402ED8618E009E1C8E /* FirebaseAnalytics in Frameworks */,
-				1FFE0C622ED8618E009E1C8E /* FirebaseMessaging in Frameworks */,
-				1FFE0C602ED8618E009E1C8E /* FirebaseMLModelDownloader in Frameworks */,
-				1FFE0C642ED8618E009E1C8E /* FirebasePerformance in Frameworks */,
-				1FFE0C4E2ED8618E009E1C8E /* FirebaseCore in Frameworks */,
-				1FFE0C462ED8618E009E1C8E /* FirebaseAppCheck in Frameworks */,
-				1FFE0C422ED8618E009E1C8E /* FirebaseAnalyticsCore in Frameworks */,
-				1FFE0C582ED8618E009E1C8E /* FirebaseFunctions in Frameworks */,
-				1FFE0C4A2ED8618E009E1C8E /* FirebaseAuth in Frameworks */,
-				1FFE0C562ED8618E009E1C8E /* FirebaseFirestoreCombine-Community in Frameworks */,
+				227DD97EC69EAD09E01F9CD7 /* Pods_Hourglass_4.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		01ECFD4B18D5772D131F01D5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C69CF1BD5D626475E33B0D2C /* Pods_Hourglass_4.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		1FF883FB2EB2600E00E08310 = {
 			isa = PBXGroup;
 			children = (
@@ -106,12 +71,21 @@
 				1FFE0BFF2ED8607A009E1C8E /* Hourglass 4.app */,
 				1FFE0CA92ED89253009E1C8E /* RootView.swift */,
 				1FFE0CAB2ED8931C009E1C8E /* AppleSignInHelper.swift */,
-				1FFE0CAD2ED893C6009E1C8E /* LoginView.swift */,
 				1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */,
 				1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */,
-				AE7B0A64402C4EBE9B8DB517 /* FirebaseDataConnectHelper.swift */,
 				744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */,
+				BC5AA12235FB60151534C66A /* Pods */,
+				01ECFD4B18D5772D131F01D5 /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		BC5AA12235FB60151534C66A /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				07E66D1CE434E6DC9445686B /* Pods-Hourglass 4.debug.xcconfig */,
+				F199BCEFFF3735BD0C1582B3 /* Pods-Hourglass 4.release.xcconfig */,
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -121,9 +95,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1FF8840F2EB2600E00E08310 /* Build configuration list for PBXNativeTarget "Hourglass 4" */;
 			buildPhases = (
+				1FFCCA39B360A74D9071AAB4 /* [CP] Check Pods Manifest.lock */,
 				1FF884002EB2600E00E08310 /* Sources */,
 				1FF884012EB2600E00E08310 /* Frameworks */,
 				1FF884022EB2600E00E08310 /* Resources */,
+				704B576C36ADE33A0815AFDD /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -133,33 +109,6 @@
 				1FF884062EB2600E00E08310 /* Hourglass 4 */,
 			);
 			name = "Hourglass 4";
-			packageProductDependencies = (
-				1FFE0C3B2ED8618E009E1C8E /* FirebaseAI */,
-				1FFE0C3D2ED8618E009E1C8E /* FirebaseAILogic */,
-				1FFE0C3F2ED8618E009E1C8E /* FirebaseAnalytics */,
-				1FFE0C412ED8618E009E1C8E /* FirebaseAnalyticsCore */,
-				1FFE0C432ED8618E009E1C8E /* FirebaseAnalyticsIdentitySupport */,
-				1FFE0C452ED8618E009E1C8E /* FirebaseAppCheck */,
-				1FFE0C472ED8618E009E1C8E /* FirebaseAppDistribution-Beta */,
-				1FFE0C492ED8618E009E1C8E /* FirebaseAuth */,
-				1FFE0C4B2ED8618E009E1C8E /* FirebaseAuthCombine-Community */,
-				1FFE0C4D2ED8618E009E1C8E /* FirebaseCore */,
-				1FFE0C4F2ED8618E009E1C8E /* FirebaseCrashlytics */,
-				1FFE0C512ED8618E009E1C8E /* FirebaseDatabase */,
-				1FFE0C532ED8618E009E1C8E /* FirebaseFirestore */,
-				1FFE0C552ED8618E009E1C8E /* FirebaseFirestoreCombine-Community */,
-				1FFE0C572ED8618E009E1C8E /* FirebaseFunctions */,
-				1FFE0C592ED8618E009E1C8E /* FirebaseFunctionsCombine-Community */,
-				1FFE0C5B2ED8618E009E1C8E /* FirebaseInAppMessaging-Beta */,
-				1FFE0C5D2ED8618E009E1C8E /* FirebaseInstallations */,
-				1FFE0C5F2ED8618E009E1C8E /* FirebaseMLModelDownloader */,
-				1FFE0C612ED8618E009E1C8E /* FirebaseMessaging */,
-				1FFE0C632ED8618E009E1C8E /* FirebasePerformance */,
-				1FFE0C652ED8618E009E1C8E /* FirebaseRemoteConfig */,
-				1FFE0C672ED8618E009E1C8E /* FirebaseStorage */,
-				1FFE0C692ED8618E009E1C8E /* FirebaseStorageCombine-Community */,
-				1FF0BB462EDD96CB005FE2B5 /* Default */,
-			);
 			productName = "Hourglass 4";
 			productReference = 1FFE0BFF2ED8607A009E1C8E /* Hourglass 4.app */;
 			productType = "com.apple.product-type.application";
@@ -180,6 +129,7 @@
 				};
 			};
 			buildConfigurationList = 1FF883FF2EB2600E00E08310 /* Build configuration list for PBXProject "Hourglass 4" */;
+			compatibilityVersion = "Xcode 16.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -188,11 +138,6 @@
 			);
 			mainGroup = 1FF883FB2EB2600E00E08310;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-				1FF0BB452EDD96CB005FE2B5 /* XCLocalSwiftPackageReference "generated/swift/Default" */,
-			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = 1FF883FB2EB2600E00E08310;
 			projectDirPath = "";
 			projectRoot = "";
@@ -212,6 +157,48 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		1FFCCA39B360A74D9071AAB4 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Hourglass 4-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		704B576C36ADE33A0815AFDD /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		1FF884002EB2600E00E08310 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -220,10 +207,8 @@
 				1FFE0CAA2ED89253009E1C8E /* RootView.swift in Sources */,
 				1FFE0CAC2ED8931C009E1C8E /* AppleSignInHelper.swift in Sources */,
 				1FFE0CB02ED893E0009E1C8E /* LoginView 2.swift in Sources */,
-				1FFE0CAE2ED893C6009E1C8E /* LoginView.swift in Sources */,
 				1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */,
 				1F6BF0432EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift in Sources */,
-				4042927154804FB7A5E0C913 /* FirebaseDataConnectHelper.swift in Sources */,
 				457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -269,7 +254,7 @@
 				DEVELOPMENT_TEAM = 6487RA2ADP;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -331,7 +316,7 @@
 				DEVELOPMENT_TEAM = 6487RA2ADP;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -349,16 +334,18 @@
 		};
 		1FF884102EB2600E00E08310 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 07E66D1CE434E6DC9445686B /* Pods-Hourglass 4.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 6487RA2ADP;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Hourglass a besoin d'accès à la caméra pour valider tes objectifs avec une photo.";
@@ -376,8 +363,14 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "corentin.soula.Hourglass-4";
@@ -400,16 +393,18 @@
 		};
 		1FF884112EB2600E00E08310 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F199BCEFFF3735BD0C1582B3 /* Pods-Hourglass 4.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 6487RA2ADP;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Hourglass a besoin d'accès à la caméra pour valider tes objectifs avec une photo.";
@@ -427,8 +422,14 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "corentin.soula.Hourglass-4";
@@ -471,151 +472,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		1FF0BB452EDD96CB005FE2B5 /* XCLocalSwiftPackageReference "generated/swift/Default" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = generated/swift/Default;
-		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
-			requirement = {
-				kind = exactVersion;
-				version = 12.6.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		1FF0BB462EDD96CB005FE2B5 /* Default */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Default;
-		};
-		1FFE0C3B2ED8618E009E1C8E /* FirebaseAI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAI;
-		};
-		1FFE0C3D2ED8618E009E1C8E /* FirebaseAILogic */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAILogic;
-		};
-		1FFE0C3F2ED8618E009E1C8E /* FirebaseAnalytics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalytics;
-		};
-		1FFE0C412ED8618E009E1C8E /* FirebaseAnalyticsCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalyticsCore;
-		};
-		1FFE0C432ED8618E009E1C8E /* FirebaseAnalyticsIdentitySupport */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalyticsIdentitySupport;
-		};
-		1FFE0C452ED8618E009E1C8E /* FirebaseAppCheck */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAppCheck;
-		};
-		1FFE0C472ED8618E009E1C8E /* FirebaseAppDistribution-Beta */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseAppDistribution-Beta";
-		};
-		1FFE0C492ED8618E009E1C8E /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
-		1FFE0C4B2ED8618E009E1C8E /* FirebaseAuthCombine-Community */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseAuthCombine-Community";
-		};
-		1FFE0C4D2ED8618E009E1C8E /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		1FFE0C4F2ED8618E009E1C8E /* FirebaseCrashlytics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCrashlytics;
-		};
-		1FFE0C512ED8618E009E1C8E /* FirebaseDatabase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseDatabase;
-		};
-		1FFE0C532ED8618E009E1C8E /* FirebaseFirestore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFirestore;
-		};
-		1FFE0C552ED8618E009E1C8E /* FirebaseFirestoreCombine-Community */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseFirestoreCombine-Community";
-		};
-		1FFE0C572ED8618E009E1C8E /* FirebaseFunctions */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFunctions;
-		};
-		1FFE0C592ED8618E009E1C8E /* FirebaseFunctionsCombine-Community */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseFunctionsCombine-Community";
-		};
-		1FFE0C5B2ED8618E009E1C8E /* FirebaseInAppMessaging-Beta */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseInAppMessaging-Beta";
-		};
-		1FFE0C5D2ED8618E009E1C8E /* FirebaseInstallations */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseInstallations;
-		};
-		1FFE0C5F2ED8618E009E1C8E /* FirebaseMLModelDownloader */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMLModelDownloader;
-		};
-		1FFE0C612ED8618E009E1C8E /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
-		};
-		1FFE0C632ED8618E009E1C8E /* FirebasePerformance */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebasePerformance;
-		};
-		1FFE0C652ED8618E009E1C8E /* FirebaseRemoteConfig */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseRemoteConfig;
-		};
-		1FFE0C672ED8618E009E1C8E /* FirebaseStorage */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseStorage;
-		};
-		1FFE0C692ED8618E009E1C8E /* FirebaseStorageCombine-Community */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1FFE0C3A2ED8618E009E1C8E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseStorageCombine-Community";
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1FF883FC2EB2600E00E08310 /* Project object */;
 }

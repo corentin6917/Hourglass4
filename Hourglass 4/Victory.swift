@@ -15,6 +15,7 @@ struct Victory: Identifiable, Codable {
     let username: String
     let displayName: String?
     let profileImageURL: String?
+    let comment: String?
 
     // Détails de la victoire
     let goalTitle: String
@@ -37,6 +38,7 @@ struct Victory: Identifiable, Codable {
         username: String,
         displayName: String?,
         profileImageURL: String?,
+        comment: String? = nil,
         goalTitle: String,
         goalEmoji: String,
         photoURL: String,
@@ -50,6 +52,7 @@ struct Victory: Identifiable, Codable {
         self.username = username
         self.displayName = displayName
         self.profileImageURL = profileImageURL
+        self.comment = comment
         self.goalTitle = goalTitle
         self.goalEmoji = goalEmoji
         self.photoURL = photoURL
@@ -124,6 +127,7 @@ struct Victory: Identifiable, Codable {
             "username": username,
             "displayName": displayName ?? "",
             "profileImageURL": profileImageURL ?? "",
+            "comment": comment ?? "",
             "goalTitle": goalTitle,
             "goalEmoji": goalEmoji,
             "photoURL": photoURL,
@@ -155,6 +159,7 @@ struct Victory: Identifiable, Codable {
             username: username,
             displayName: data["displayName"] as? String,
             profileImageURL: data["profileImageURL"] as? String,
+            comment: data["comment"] as? String,
             goalTitle: goalTitle,
             goalEmoji: goalEmoji,
             photoURL: photoURL,

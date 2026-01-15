@@ -6,6 +6,12 @@
 //
 
 import SwiftUI
+#if canImport(FirebaseAuth)
+import FirebaseAuth
+#endif
+#if canImport(FirebaseFirestore)
+import FirebaseFirestore
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -20,7 +26,7 @@ struct FirebaseCreateGoalView: View {
     @State private var description = ""
     @State private var selectedCategory: GoalCategory = .personal
     @State private var selectedEffort: GoalEffort = .medium
-    @State private var suggestedGrains = 2.5
+    @State private var suggestedGrains = 3.0
     @State private var adjustment: Double = 0.0
     @State private var recentCount = 0
     @State private var isEstimating = false
@@ -55,221 +61,13 @@ struct FirebaseCreateGoalView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Header simple avec +
-                    HStack(spacing: 8) {
-                        Text("+")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(.orange)
-
-                        Text("Nouvel Objectif (0/3)")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.black)
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 24)
-                    .background(Color.white)
+                    headerSection
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-                            // Question principale
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Que veux-tu accomplir aujourd'hui ?")
-                                    .font(.system(size: 16, weight: .regular))
-                                    .foregroundStyle(.black)
-
-                                TextField("Ex: Courir 30 minutes", text: $title)
-                                    .font(.system(size: 16))
-                                    .padding(16)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(Color.white)
-                                            )
-                                    )
-                            }
-
-                            // Catégorie dropdown simple
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Catégorie")
-                                    .font(.system(size: 16, weight: .regular))
-                                    .foregroundStyle(.black)
-
-                                Menu {
-                                    ForEach(GoalCategory.allCases, id: \.self) { category in
-                                        Button {
-                                            selectedCategory = category
-                                        } label: {
-                                            HStack {
-                                                Text(category.emoji)
-                                                Text(category.displayName)
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Text(selectedCategory.emoji)
-                                            .font(.system(size: 18))
-                                        Text(selectedCategory.displayName)
-                                            .font(.system(size: 16))
-                                            .foregroundStyle(.black)
-                                        Spacer()
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.gray)
-                                    }
-                                    .padding(16)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(Color.white)
-                                            )
-                                    )
-                                }
-                            }
-
-                            // Card Valeur suggérée (fond beige)
-                            VStack(alignment: .leading, spacing: 16) {
-                                HStack {
-                                    Text("Valeur suggérée")
-                                        .font(.system(size: 14, weight: .regular))
-                                        .foregroundStyle(.black.opacity(0.7))
-
-                                    Spacer()
-
-                                    if isEstimating {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .orange))
-                                    } else if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text("\(recentCount)x / 30j")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.black.opacity(0.5))
-                                    }
-                                }
-
-                                HStack(spacing: 8) {
-                                    Image(systemName: "sparkles")
-                                        .font(.system(size: 20))
-                                        .foregroundStyle(.orange)
-
-                                    Text(String(format: "%.1f", finalGrains))
-                                        .font(.system(size: 32, weight: .bold))
-                                        .foregroundStyle(.orange)
-
-                                    Text("grains")
-                                        .font(.system(size: 16))
-                                        .foregroundStyle(.black.opacity(0.6))
-                                }
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Effort perçu")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.black.opacity(0.6))
-
-                                    HStack(spacing: 8) {
-                                        ForEach(GoalEffort.allCases, id: \.self) { effort in
-                                            Button {
-                                                selectedEffort = effort
-                                                updateSuggestion()
-                                            } label: {
-                                                Text(effort.displayName)
-                                                    .font(.system(size: 13, weight: .semibold))
-                                                    .foregroundStyle(selectedEffort == effort ? .white : .black)
-                                                    .padding(.horizontal, 12)
-                                                    .padding(.vertical, 8)
-                                                    .background(
-                                                        Capsule()
-                                                            .fill(selectedEffort == effort ? Color.orange : Color.white)
-                                                            .overlay(
-                                                                Capsule()
-                                                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                                                            )
-                                                    )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Ajustement (±1 grain)")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.black.opacity(0.6))
-
-                                    Slider(value: $adjustment, in: -1...1, step: 0.5)
-                                        .tint(.orange)
-
-                                    Text("Final: \(String(format: "%.1f", finalGrains)) grains")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.black.opacity(0.6))
-                                }
-                            }
-                            .padding(20)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.orange.opacity(0.15))
-                            )
-
-                            // Bouton Ajouter l'objectif
-                            Button {
-                                Task {
-                                    await createGoal()
-                                }
-                            } label: {
-                                Group {
-                                    if isCreating {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    } else {
-                                        Text("Ajouter l'objectif")
-                                            .font(.system(size: 16, weight: .semibold))
-                                    }
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(title.isEmpty ? Color.gray : Color.orange)
-                                )
-                            }
-                            .disabled(title.isEmpty || isCreating)
-
-                            // Exemples pour cette catégorie
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Exemples pour cette catégorie :")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.black.opacity(0.6))
-
-                                HStack(spacing: 8) {
-                                    ForEach(categoryExamples.prefix(3), id: \.self) { example in
-                                        Button {
-                                            title = example
-                                        } label: {
-                                            Text(example)
-                                                .font(.system(size: 14))
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 10)
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                                        .background(
-                                                            RoundedRectangle(cornerRadius: 8)
-                                                                .fill(Color.white)
-                                                        )
-                                                )
-                                                .foregroundStyle(.black)
-                                        }
-                                    }
-                                }
-                            }
-
+                            mainQuestionSection
+                            suggestedValueCard
+                            addGoalButton
                             Spacer(minLength: 40)
                         }
                         .padding(.horizontal, 20)
@@ -300,6 +98,197 @@ struct FirebaseCreateGoalView: View {
         }
     }
 
+    private var mainQuestionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Que veux-tu accomplir aujourd'hui ?")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            TextField("Ex: Courir 30 minutes", text: $title)
+                .font(.system(size: 16))
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(uiColor: .systemGray6))
+                )
+        }
+    }
+
+    private var suggestedValueCard: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Valeur suggérée")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    if isEstimating {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                                .scaleEffect(0.7)
+                            Text("Calcul...")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Fait \(recentCount) fois ces 30 derniers jours")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 24))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                Text("\(Int(ceil(finalGrains)))")
+                    .font(.system(size: 48, weight: .bold))
+                    .foregroundStyle(.orange)
+
+                Text("grains")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Effort perçu")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 10) {
+                    ForEach(GoalEffort.allCases, id: \.self) { effort in
+                        Button {
+                            selectedEffort = effort
+                            updateSuggestion()
+                        } label: {
+                            Text(effort.displayName)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(selectedEffort == effort ? .white : .orange)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(selectedEffort == effort ? Color.orange : Color.clear)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(Color.orange, lineWidth: selectedEffort == effort ? 0 : 1.5)
+                                        )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Ajustement manuel")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 12) {
+                    Text("−1")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    Slider(value: $adjustment, in: -1...1, step: 1.0)
+                        .tint(.orange)
+
+                    Text("+1")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                if adjustment != 0 {
+                    Text("Ajusté de \(adjustment > 0 ? "+" : "")\(Int(adjustment)) grain\(abs(adjustment) > 1 ? "s" : "")")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.12),
+                            Color.orange.opacity(0.06)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+
+    private var addGoalButton: some View {
+        Button {
+            Task {
+                await createGoal()
+            }
+        } label: {
+            Group {
+                if isCreating {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                } else {
+                    Text("Ajouter l'objectif")
+                        .font(.system(size: 17, weight: .semibold))
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(title.isEmpty ? Color.gray.opacity(0.3) : Color.orange)
+                    .shadow(
+                        color: title.isEmpty ? .clear : .orange.opacity(0.3),
+                        radius: 8,
+                        x: 0,
+                        y: 4
+                    )
+            )
+        }
+        .disabled(title.isEmpty || isCreating)
+    }
+
+    private var headerSection: some View {
+        HStack(spacing: 8) {
+            Text("+")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.orange)
+
+            Text("Nouvel Objectif (0/3)")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.black)
+
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 24)
+        .background(Color.white)
+    }
+
     private func createGoal() async {
         isCreating = true
 
@@ -321,8 +310,8 @@ struct FirebaseCreateGoalView: View {
     }
 
     private var finalGrains: Double {
-        let value = roundToHalf(suggestedGrains + adjustment)
-        return min(10.0, max(0.5, value))
+        let value = roundUpGrain(suggestedGrains + adjustment)
+        return min(10.0, max(1.0, value))
     }
 
     private func recalcSuggestion() {
@@ -359,7 +348,7 @@ struct FirebaseCreateGoalView: View {
             difficulty: selectedEffort.difficulty
         )
         let multiplier = rarityMultiplier(for: recentCount)
-        suggestedGrains = roundToHalf(base * multiplier)
+        suggestedGrains = roundUpGrain(base * multiplier)
         adjustment = min(1, max(-1, adjustment))
     }
 
@@ -380,8 +369,8 @@ struct FirebaseCreateGoalView: View {
         }
     }
 
-    private func roundToHalf(_ value: Double) -> Double {
-        round(value * 2) / 2
+    private func roundUpGrain(_ value: Double) -> Double {
+        ceil(value)
     }
 }
 
@@ -420,13 +409,11 @@ struct FirebaseGoalCard: View {
 
     @State private var showValidation = false
     @State private var showPhoto = false
+    @State private var showCommentEditor = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(goal.category.emoji)
-                    .font(.title2)
-
                 VStack(alignment: .leading, spacing: 4) {
                     Text(goal.title)
                         .font(.headline)
@@ -441,7 +428,7 @@ struct FirebaseGoalCard: View {
                 Spacer()
 
                 VStack(alignment: .trailing) {
-                    Text(String(format: "%.1f", goal.grainValue))
+                    Text("\(Int(ceil(goal.grainValue)))")
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundStyle(.orange)
@@ -465,12 +452,16 @@ struct FirebaseGoalCard: View {
                             .font(.headline)
                             .fontWeight(.semibold)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background {
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.green)
+                            .fill(Color.orange.opacity(0.12))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                            }
                     }
                 }
             }
@@ -512,6 +503,26 @@ struct FirebaseGoalCard: View {
                                 .fill(Color.blue.opacity(0.1))
                         }
                     }
+
+                    Button {
+                        showCommentEditor = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "quote.bubble")
+                                .font(.subheadline)
+
+                            Text("Ajouter / modifier le commentaire")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.orange.opacity(0.12))
+                        }
+                    }
                 }
             }
         }
@@ -528,6 +539,9 @@ struct FirebaseGoalCard: View {
             if let photoURL = goal.photoURL {
                 GoalPhotoView(photoURL: photoURL, goalTitle: goal.title)
             }
+        }
+        .sheet(isPresented: $showCommentEditor) {
+            GoalVictoryCommentEditor(goal: goal)
         }
     }
 }
@@ -579,6 +593,177 @@ struct GoalPhotoView: View {
     }
 }
 
+// MARK: - Commentaire de victoire (Objectifs)
+
+struct GoalVictoryCommentEditor: View {
+    let goal: FirebaseGoal
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var commentText = ""
+    @State private var initialComment = ""
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var resolvedVictoryId: String?
+    @FocusState private var isCommentFocused: Bool
+
+    private var trimmedComment: String {
+        commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedInitial: String {
+        initialComment.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Ton commentaire")
+                    .font(.headline)
+
+                if isLoading {
+                    ProgressView()
+                } else if resolvedVictoryId == nil {
+                    Text("Impossible de retrouver cette victoire pour l’instant.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    TextField("Ajoute un commentaire pour ta victoire", text: $commentText, axis: .vertical)
+                        .lineLimit(2...4)
+                        .submitLabel(.done)
+                        .focused($isCommentFocused)
+                        .onSubmit { isCommentFocused = false }
+                        .padding(12)
+                        .background {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.orange.opacity(0.08))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+                                }
+                        }
+
+                    Button {
+                        Task { await saveComment() }
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        } else {
+                            Text(trimmedInitial.isEmpty ? "Ajouter" : "Mettre à jour")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.orange)
+                                }
+                        }
+                    }
+                    .disabled(isSaving || trimmedComment == trimmedInitial)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Commentaire")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+                ToolbarItem(placement: .keyboard) {
+                    Button("Terminer") { isCommentFocused = false }
+                }
+            }
+            .task {
+                await loadComment()
+            }
+        }
+    }
+
+    private func loadComment() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let victoryId = try await resolveVictoryId()
+            resolvedVictoryId = victoryId
+
+            if let victoryId {
+                let comment = try await VictoryManager.shared.fetchVictoryComment(victoryId: victoryId) ?? ""
+                await MainActor.run {
+                    initialComment = comment
+                    commentText = comment
+                }
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        isLoading = false
+    }
+
+    private func resolveVictoryId() async throws -> String? {
+        if let victoryId = goal.victoryId, !victoryId.isEmpty {
+            return victoryId
+        }
+
+        guard let photoURL = goal.photoURL,
+              let currentUserId = Auth.auth().currentUser?.uid else {
+            return nil
+        }
+
+        if let victoryId = try await VictoryManager.shared.fetchVictoryIdByPhotoURL(photoURL, userId: currentUserId) {
+            let db = Firestore.firestore()
+            try await db.collection("goals").document(goal.goalId).updateData([
+                "victoryId": victoryId
+            ])
+            return victoryId
+        }
+
+        return nil
+    }
+
+    private func saveComment() async {
+        guard let victoryId = resolvedVictoryId else {
+            await MainActor.run {
+                errorMessage = "Victoire introuvable."
+            }
+            return
+        }
+
+        isSaving = true
+        errorMessage = nil
+
+        do {
+            try await VictoryManager.shared.updateVictoryComment(victoryId: victoryId, comment: commentText)
+            await MainActor.run {
+                initialComment = trimmedComment
+                commentText = trimmedComment
+                isCommentFocused = false
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        isSaving = false
+    }
+}
+
 // MARK: - Validate Goal View (Firebase)
 
 #if canImport(UIKit) && !os(macOS)
@@ -591,21 +776,20 @@ struct FirebaseValidateGoalView: View {
     @State private var selectedImage: UIImage?
     @State private var showImagePicker = false
     @State private var isValidating = false
+    @State private var commentText: String = ""
+    @FocusState private var isCommentFocused: Bool
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 // Info objectif
                 VStack(spacing: 8) {
-                    Text(goal.category.emoji)
-                        .font(.system(size: 60))
-
                     Text(goal.title)
                         .font(.title2)
                         .fontWeight(.bold)
 
                     HStack {
-                        Text(String(format: "%.1f", goal.grainValue))
+                        Text("\(Int(ceil(goal.grainValue)))")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundStyle(.orange)
@@ -637,15 +821,15 @@ struct FirebaseValidateGoalView: View {
                                 Text("Ajouter une photo de preuve")
                                     .font(.headline)
                             }
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(.orange)
                             .frame(maxWidth: .infinity)
                             .frame(height: 200)
                             .background {
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.blue.opacity(0.1))
+                                    .fill(Color.orange.opacity(0.08))
                                     .overlay {
                                         RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [10]))
+                                            .stroke(Color.orange, style: StrokeStyle(lineWidth: 2, dash: [10]))
                                     }
                             }
                             .padding(.horizontal)
@@ -655,6 +839,43 @@ struct FirebaseValidateGoalView: View {
                     Text("📸 Photo non retouchée requise")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "quote.bubble")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.orange)
+                        Text("Commentaire (optionnel)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+
+                    TextField("Ex: Premiere sortie longue 💪", text: $commentText, axis: .vertical)
+                        .lineLimit(2...3)
+                        .submitLabel(.done)
+                        .focused($isCommentFocused)
+                        .onSubmit { isCommentFocused = false }
+                        .padding(14)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.orange.opacity(0.08),
+                                            Color(uiColor: .secondarySystemBackground)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+                                }
+                        }
+                        .padding(.horizontal)
                 }
 
                 Spacer()
@@ -677,7 +898,7 @@ struct FirebaseValidateGoalView: View {
                             .padding()
                             .background {
                                 RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.green)
+                                    .fill(Color.orange)
                             }
                             .padding(.horizontal)
                     }
@@ -691,6 +912,11 @@ struct FirebaseValidateGoalView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annuler") {
                         dismiss()
+                    }
+                }
+                ToolbarItem(placement: .keyboard) {
+                    Button("Terminer") {
+                        isCommentFocused = false
                     }
                 }
             }
@@ -712,11 +938,12 @@ struct FirebaseValidateGoalView: View {
             let victory = try await VictoryManager.shared.createVictory(
                 goalTitle: goal.title,
                 goalEmoji: goal.category.emoji,
-                photoImage: image
+                photoImage: image,
+                comment: commentText
             )
 
             // 2. Valider l'objectif dans Firebase avec l'URL de la photo
-            try await goalManager.validateGoal(goal, photoURL: victory.photoURL)
+            try await goalManager.validateGoal(goal, photoURL: victory.photoURL, victoryId: victory.victoryId)
 
             await MainActor.run {
                 dismiss()

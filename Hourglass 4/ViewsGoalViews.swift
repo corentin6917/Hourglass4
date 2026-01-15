@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -15,37 +16,56 @@ import UIKit
 struct GoalCardView: View {
     let goal: Goal
     let viewModel: HourglassViewModel?
-    
+
     @State private var showValidation = false
-    
+    @State private var isPinned = false
+    @State private var isLoadingPin = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(goal.category.emoji)
-                    .font(.title2)
-                
                 VStack(alignment: .leading, spacing: 4) {
                     Text(goal.title)
                         .font(.headline)
-                    
+
                     if let description = goal.goalDescription {
                         Text(description)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-                
+
                 Spacer()
-                
-                VStack(alignment: .trailing) {
-                    Text(String(format: "%.1f", goal.grainValue))
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(Int(ceil(goal.grainValue)))")
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundStyle(.orange)
-                    
+
                     Text("grains")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+
+                // Pin button (only shown for completed goals)
+                if goal.status == .completed {
+                    Button {
+                        Task {
+                            await togglePin()
+                        }
+                    } label: {
+                        Image(systemName: isPinned ? "pin.fill" : "pin")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.orange)
+                            .frame(width: 32, height: 32)
+                            .background {
+                                Circle()
+                                    .fill(Color.orange.opacity(0.1))
+                            }
+                    }
+                    .disabled(isLoadingPin)
+                    .opacity(isLoadingPin ? 0.5 : 1.0)
                 }
             }
             
@@ -98,6 +118,49 @@ struct GoalCardView: View {
         .sheet(isPresented: $showValidation) {
             ValidateGoalView(goal: goal, viewModel: viewModel)
         }
+        .task {
+            if goal.status == .completed {
+                await loadPinState()
+            }
+        }
+    }
+
+    private func loadPinState() async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        do {
+            let goalKey = "\(goal.title)_\(Int(goal.createdAt.timeIntervalSince1970))"
+            let pinned = try await GoalPinManager.shared.isGoalPinned(goalKey, userId: currentUserId)
+            await MainActor.run {
+                isPinned = pinned
+            }
+        } catch {
+            print("Error loading pin state: \(error.localizedDescription)")
+        }
+    }
+
+    private func togglePin() async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        isLoadingPin = true
+
+        do {
+            let goalKey = "\(goal.title)_\(Int(goal.createdAt.timeIntervalSince1970))"
+            if isPinned {
+                try await GoalPinManager.shared.unpinGoal(goalKey, userId: currentUserId)
+                await MainActor.run { isPinned = false }
+            } else {
+                try await GoalPinManager.shared.pinGoal(goalKey, userId: currentUserId, goalData: [
+                    "title": goal.title,
+                    "emoji": goal.category.emoji,
+                    "grainValue": goal.grainValue,
+                    "createdAt": goal.createdAt.timeIntervalSince1970
+                ])
+                await MainActor.run { isPinned = true }
+            }
+        } catch {
+            print("Error toggling pin: \(error.localizedDescription)")
+        }
+
+        isLoadingPin = false
     }
 }
 
@@ -135,14 +198,14 @@ struct CreateGoalView: View {
                 Section("Valeur estimée") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text(String(format: "%.1f grains", estimatedGrains))
+                            Text("\(Int(ceil(estimatedGrains))) grains")
                                 .font(.headline)
                                 .foregroundStyle(.orange)
                             
                             Spacer()
                         }
                         
-                        Slider(value: $estimatedGrains, in: 0.5...10.0, step: 0.5)
+                        Slider(value: $estimatedGrains, in: 1.0...10.0, step: 1.0)
                         
                         Text("L'app ajustera cette valeur selon tes habitudes et la difficulté.")
                             .font(.caption)
@@ -173,7 +236,7 @@ struct CreateGoalView: View {
         let goal = Goal(
             title: title,
             description: description.isEmpty ? nil : description,
-            baseValue: estimatedGrains,
+            baseValue: ceil(estimatedGrains),
             category: selectedCategory
         )
         
@@ -192,21 +255,20 @@ struct ValidateGoalView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedImage: UIImage?
     @State private var showImagePicker = false
+    @State private var commentText: String = ""
+    @FocusState private var isCommentFocused: Bool
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 // Info objectif
                 VStack(spacing: 8) {
-                    Text(goal.category.emoji)
-                        .font(.system(size: 60))
-                    
                     Text(goal.title)
                         .font(.title2)
                         .fontWeight(.bold)
                     
                     HStack {
-                        Text(String(format: "%.1f", goal.grainValue))
+                        Text("\(Int(ceil(goal.grainValue)))")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundStyle(.orange)
@@ -238,15 +300,15 @@ struct ValidateGoalView: View {
                                 Text("Ajouter une photo de preuve")
                                     .font(.headline)
                             }
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(.orange)
                             .frame(maxWidth: .infinity)
                             .frame(height: 200)
                             .background {
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.blue.opacity(0.1))
+                                    .fill(Color.orange.opacity(0.08))
                                     .overlay {
                                         RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [10]))
+                                            .stroke(Color.orange, style: StrokeStyle(lineWidth: 2, dash: [10]))
                                     }
                             }
                             .padding(.horizontal)
@@ -256,6 +318,43 @@ struct ValidateGoalView: View {
                     Text("📸 Photo non retouchée requise")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "quote.bubble")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.orange)
+                        Text("Commentaire (optionnel)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+
+                    TextField("Ex: Premiere sortie longue 💪", text: $commentText, axis: .vertical)
+                        .lineLimit(2...3)
+                        .submitLabel(.done)
+                        .focused($isCommentFocused)
+                        .onSubmit { isCommentFocused = false }
+                        .padding(14)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.orange.opacity(0.08),
+                                            Color(uiColor: .secondarySystemBackground)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+                                }
+                        }
+                        .padding(.horizontal)
                 }
                 
                 Spacer()
@@ -271,7 +370,7 @@ struct ValidateGoalView: View {
                         .padding()
                         .background {
                             RoundedRectangle(cornerRadius: 15)
-                                .fill(Color.green)
+                                .fill(Color.orange)
                         }
                         .padding(.horizontal)
                 }
@@ -284,6 +383,11 @@ struct ValidateGoalView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annuler") {
                         dismiss()
+                    }
+                }
+                ToolbarItem(placement: .keyboard) {
+                    Button("Terminer") {
+                        isCommentFocused = false
                     }
                 }
             }
@@ -305,7 +409,8 @@ struct ValidateGoalView: View {
                 _ = try await VictoryManager.shared.createVictory(
                     goalTitle: goal.title,
                     goalEmoji: goal.category.emoji,
-                    photoImage: image
+                    photoImage: image,
+                    comment: commentText
                 )
 
                 // Valider l'objectif localement

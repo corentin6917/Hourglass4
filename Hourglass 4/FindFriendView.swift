@@ -10,6 +10,8 @@ import SwiftUI
 struct FindFriendView: View {
     @StateObject private var viewModel = FindFriendViewModelV2()
     @Environment(\.dismiss) private var dismiss
+    @State private var searchTask: Task<Void, Never>?
+    @State private var hasSearched = false
 
     var body: some View {
         NavigationStack {
@@ -26,7 +28,7 @@ struct FindFriendView: View {
                         userResultCard(user)
                     } else if viewModel.searchQuery.isEmpty {
                         emptyStateView
-                    } else if viewModel.searchResult == nil && !viewModel.searchQuery.isEmpty {
+                    } else if hasSearched {
                         noResultView
                     }
 
@@ -54,6 +56,9 @@ struct FindFriendView: View {
                     Button("Fermer") { dismiss() }
                 }
             }
+            .onDisappear {
+                searchTask?.cancel()
+            }
         }
     }
 
@@ -68,8 +73,26 @@ struct FindFriendView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .onSubmit {
-                    Task {
+                    triggerSearch()
+                }
+                .onChange(of: viewModel.searchQuery) { newValue in
+                    searchTask?.cancel()
+                    hasSearched = false
+                    let trimmedQuery = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    guard !trimmedQuery.isEmpty else {
+                        viewModel.clearSearch()
+                        return
+                    }
+
+                    guard trimmedQuery.count >= 2 else { return }
+
+                    searchTask = Task {
+                        try? await Task.sleep(nanoseconds: 350_000_000)
+                        if Task.isCancelled { return }
                         await viewModel.searchUser()
+                        if Task.isCancelled { return }
+                        hasSearched = true
                     }
                 }
 
@@ -88,6 +111,22 @@ struct FindFriendView: View {
                 .fill(Color(.secondarySystemBackground))
         }
         .padding()
+    }
+
+    private func triggerSearch() {
+        searchTask?.cancel()
+        let trimmedQuery = viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            viewModel.clearSearch()
+            hasSearched = false
+            return
+        }
+
+        searchTask = Task {
+            await viewModel.searchUser()
+            if Task.isCancelled { return }
+            hasSearched = true
+        }
     }
 
     // MARK: - User Result Card
