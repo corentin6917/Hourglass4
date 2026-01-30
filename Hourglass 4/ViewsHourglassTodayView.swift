@@ -20,6 +20,8 @@ struct HourglassTodayView: View {
     @State private var isLoadingHeritage = false
     @State private var dailyBudget: Double = 10.0 // Budget quotidien adaptatif
     @State private var showSablierInfo = false
+    @State private var showHeritageInfo = false
+    @State private var showActiveDaysInfo = false
 
     var lifeRatio: Double {
         let earned = earnedGrainsToday
@@ -109,37 +111,20 @@ struct HourglassTodayView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
                         // Header
-                        HStack {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Button {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        showSablierInfo.toggle()
-                                    }
-                                } label: {
-                                    Text("Sablier")
-                                        .font(.system(size: 28, weight: .bold))
-                                        .foregroundStyle(
-                                            LinearGradient(
-                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
+                        PageHeader(
+                            title: "Sablier",
+                            dateText: formattedDate,
+                            dateStyle: .capsule,
+                            onTitleTap: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    showSablierInfo.toggle()
                                 }
-                                .buttonStyle(.plain)
-
-                                Text(formattedDate)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-                            CurrentUserAvatarButton(size: 44) {
+                            },
+                            onAvatarTap: {
                                 showProfile = true
                             }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 16)
+                        )
+                        .tutorialAnchor("sablier.header")
 
                         if showSablierInfo {
                             VStack(alignment: .leading, spacing: 0) {
@@ -149,22 +134,10 @@ struct HourglassTodayView: View {
                                     .shadow(color: .orange.opacity(0.15), radius: 4, x: 0, y: -2)
 
                                 VStack(alignment: .leading, spacing: 10) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "hourglass.circle.fill")
-                                            .font(.subheadline)
-                                            .foregroundStyle(
-                                                LinearGradient(
-                                                    colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
+                                    Text("Ton sablier")
+                                        .font(.system(size: 14, weight: .semibold))
 
-                                        Text("Ton sablier")
-                                            .font(.system(size: 14, weight: .semibold))
-                                    }
-
-                                    Text("Il représente ton potentiel du jour. Gagne des grains en validant tes objectifs, et le budget se remet à zéro chaque matin.")
+                                    Text("Ici, tu vois les grains gagnés sur ton potentiel du jour.")
                                         .font(.system(size: 12))
                                         .foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -210,21 +183,22 @@ struct HourglassTodayView: View {
                                 .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 12)
 
                             VStack(spacing: 20) {
-                                VStack(spacing: 6) {
-                                    Text("Ton Sablier")
-                                        .font(.system(size: 22, weight: .bold))
-                                        .foregroundStyle(.primary)
-                                    Text("Mesure ton intensité de vie")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                                ZStack {
+                                    HourglassHaloView()
 
-                                GrainClockView(
-                                    total: totalGrainsDisplay,
-                                    filled: earnedGrainsDisplay,
-                                    color: ratioColor,
-                                    value: "\(Int(ceil(todayGrains)))"
-                                )
+                                    GrainClockView(
+                                        total: totalGrainsDisplay,
+                                        filled: earnedGrainsDisplay,
+                                        color: ratioColor,
+                                        value: "\(Int(ceil(todayGrains)))"
+                                    )
+                                    .frame(width: 200, height: 200)
+                                }
+                                .onTapGesture {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        showSablierInfo.toggle()
+                                    }
+                                }
 
                                 Text(motivationalMessage)
                                     .font(.caption)
@@ -238,18 +212,53 @@ struct HourglassTodayView: View {
                                     )
 
                                 VStack(spacing: 12) {
+                                    if showHeritageInfo {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Héritage total")
+                                                .font(.system(size: 14, weight: .semibold))
+
+                                            Text("C'est la somme de tous les grains gagnés depuis le début. Il augmente à chaque objectif validé.")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(.secondary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .padding(14)
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Color(uiColor: .systemBackground))
+                                                .shadow(color: .orange.opacity(0.25), radius: 16, x: 0, y: 8)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .transition(.scale.combined(with: .opacity))
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                showHeritageInfo = false
+                                            }
+                                        }
+                                    }
+
                                     SablierPrimaryTile(
                                         icon: "sparkles",
                                         title: "Héritage total",
                                         value: "\(Int(totalHeritage))"
                                     )
+                                    .onTapGesture {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            showHeritageInfo.toggle()
+                                        }
+                                    }
 
                                     HStack(spacing: 12) {
-                                    SablierMiniTile(
-                                        icon: "calendar",
-                                        title: "Jours actifs",
-                                        value: isLoadingHeritage ? "…" : "\(activeDaysTotal)"
-                                    )
+                                        SablierMiniTile(
+                                            icon: "calendar",
+                                            title: "Jours actifs",
+                                            value: isLoadingHeritage ? "…" : "\(activeDaysTotal)"
+                                        )
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                showActiveDaysInfo.toggle()
+                                            }
+                                        }
 
                                         SablierMiniTile(
                                             icon: "tray",
@@ -263,10 +272,35 @@ struct HourglassTodayView: View {
                                             value: "\(earnedGrainsDisplay)/\(totalGrainsDisplay)"
                                         )
                                     }
+                                    if showActiveDaysInfo {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Jours actifs")
+                                                .font(.system(size: 14, weight: .semibold))
+
+                                            Text("Nombre de jours où tu as été actif dans l'application.")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(.secondary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .padding(14)
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Color(uiColor: .systemBackground))
+                                                .shadow(color: .orange.opacity(0.25), radius: 16, x: 0, y: 8)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .transition(.scale.combined(with: .opacity))
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                showActiveDaysInfo = false
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             .padding(24)
                         }
+                        .tutorialAnchor("sablier.card")
                         .padding(.horizontal, 24)
 
                         // Bouton CTA si 0 objectifs créés aujourd'hui
@@ -296,15 +330,36 @@ struct HourglassTodayView: View {
                             }
                             .padding(.horizontal, 24)
                             .padding(.vertical, 8)
+                            .tutorialAnchor("sablier.start")
                         }
 
                         // Historique des 7 derniers jours avec vraies données
                         VStack(alignment: .leading, spacing: 20) {
-                            Text("Historique de la semaine")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.primary)
-                                .padding(.horizontal, 24)
+                            HStack(spacing: 10) {
+                                Text("Historique de la semaine")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.orange.opacity(0.08))
+                                    )
+
+                                Spacer()
+
+                                Text("7 jours")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.orange)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.orange.opacity(0.12))
+                                    )
+                            }
+                            .padding(.horizontal, 24)
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 16) {
@@ -480,6 +535,9 @@ struct SablierPrimaryTile: View {
     let icon: String
     let title: String
     let value: String
+    private var isOrangeTitle: Bool {
+        title == "Héritage total"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -498,7 +556,7 @@ struct SablierPrimaryTile: View {
                     .foregroundStyle(.primary)
                 Text(title)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isOrangeTitle ? .orange : .secondary)
             }
 
             Spacer()
@@ -519,6 +577,9 @@ struct SablierMiniTile: View {
     let icon: String
     let title: String
     let value: String
+    private var isOrangeTitle: Bool {
+        title == "Jours actifs" || title == "Disponibles" || title == "Aujourd'hui"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -534,7 +595,7 @@ struct SablierMiniTile: View {
 
             Text(title)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isOrangeTitle ? .orange : .secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -549,6 +610,24 @@ struct SablierMiniTile: View {
     }
 }
 
+struct HourglassHaloView: View {
+    @State private var pulse = false
+
+    var body: some View {
+        Circle()
+            .stroke(Color.orange.opacity(0.28), lineWidth: 10)
+            .frame(width: 180, height: 180)
+            .scaleEffect(pulse ? 1.04 : 0.96)
+            .opacity(pulse ? 0.7 : 0.45)
+            .blur(radius: 0.5)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                    pulse.toggle()
+                }
+            }
+    }
+}
+
 // MARK: - Intensité ring
 
 struct GrainClockView: View {
@@ -557,11 +636,16 @@ struct GrainClockView: View {
     let color: Color
     let value: String
 
+    @State private var activeIndex: Int? = nil
+    @State private var pulseAll = false
+    @State private var animationTask: Task<Void, Never>?
+
     var body: some View {
         GeometryReader { proxy in
             let size = min(proxy.size.width, proxy.size.height)
             let radius = size / 2 - 12
             let markers = max(5, min(15, total)) // Nombre de points = budget quotidien (entre 5 et 15)
+            let filledCount = markerFillCount(total: total, filled: filled, markers: markers)
 
             ZStack {
                 Circle()
@@ -585,10 +669,12 @@ struct GrainClockView: View {
                     let y = (size / 2) + sin(angle) * radius
                     let threshold = Int(round(Double(total) * (Double(index + 1) / Double(markers))))
                     let isFilled = filled >= max(1, threshold)
+                    let isActive = isFilled && (pulseAll || activeIndex == index)
 
                     Circle()
-                        .fill(isFilled ? color : Color.orange.opacity(0.18))
+                        .fill(isFilled ? color.opacity(isActive ? 1.0 : 0.6) : Color.orange.opacity(0.18))
                         .frame(width: 6, height: 6)
+                        .scaleEffect(isActive ? 1.25 : 1.0)
                         .position(x: x, y: y)
                 }
 
@@ -604,6 +690,73 @@ struct GrainClockView: View {
             .frame(width: size, height: size)
         }
         .frame(width: 150, height: 150)
+        .onAppear {
+            startMarkerAnimation()
+        }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
+        }
+        .onChange(of: filled) { _, _ in
+            startMarkerAnimation()
+        }
+        .onChange(of: total) { _, _ in
+            startMarkerAnimation()
+        }
+    }
+
+    private func markerFillCount(total: Int, filled: Int, markers: Int) -> Int {
+        guard total > 0 else { return 0 }
+        var count = 0
+        for index in 0..<markers {
+            let threshold = Int(round(Double(total) * (Double(index + 1) / Double(markers))))
+            if filled >= max(1, threshold) {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    private func startMarkerAnimation() {
+        animationTask?.cancel()
+        activeIndex = nil
+        pulseAll = false
+
+        animationTask = Task {
+            while !Task.isCancelled {
+                let markers = max(5, min(15, total))
+                let filledCount = markerFillCount(total: total, filled: filled, markers: markers)
+
+                guard filledCount > 0 else {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
+
+                for index in 0..<filledCount {
+                    await MainActor.run {
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            activeIndex = index
+                        }
+                    }
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                }
+
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        pulseAll = true
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        pulseAll = false
+                        activeIndex = nil
+                    }
+                }
+
+                try? await Task.sleep(nanoseconds: 600_000_000)
+            }
+        }
     }
 }
 
@@ -757,6 +910,7 @@ struct DayDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var dayGoals: [FirebaseGoal] = []
     @State private var isLoading = true
+    @State private var selectedGoal: FirebaseGoal?
 
     var formattedDate: String {
         let formatter = DateFormatter()
@@ -912,7 +1066,9 @@ struct DayDetailView: View {
                                 .padding(.horizontal)
 
                             ForEach(dayGoals) { goal in
-                                DayGoalRow(goal: goal)
+                                DayGoalRow(goal: goal) {
+                                    selectedGoal = goal
+                                }
                                     .padding(.horizontal)
                             }
                         }
@@ -926,7 +1082,7 @@ struct DayDetailView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         dismiss()
                     } label: {
@@ -940,6 +1096,9 @@ struct DayDetailView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .task {
                 await loadDayGoals()
+            }
+            .sheet(item: $selectedGoal) { goal in
+                GoalDetailSheet(goal: goal)
             }
         }
     }
@@ -1064,6 +1223,7 @@ struct StatLine: View {
 
 struct DayGoalRow: View {
     let goal: FirebaseGoal
+    let onTap: (() -> Void)?
 
     private var displayStatus: GoalStatus {
         if goal.status == .pending && isPastDay {
@@ -1098,89 +1258,118 @@ struct DayGoalRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            // Icon avec container circulaire moderne
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [statusColor.opacity(0.15), statusColor.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+        Button {
+            onTap?()
+        } label: {
+            HStack(spacing: 14) {
+                // Icon avec container circulaire moderne
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [statusColor.opacity(0.15), statusColor.opacity(0.08)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 40, height: 40)
+                        .frame(width: 40, height: 40)
 
-                Image(systemName: statusIcon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [statusColor, statusColor.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                    Image(systemName: statusIcon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [statusColor, statusColor.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-            }
+                }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(goal.title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(goal.title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
 
-                if let description = goal.goalDescription, !description.isEmpty {
-                    Text(description)
-                        .font(.caption)
+                    if let description = goal.goalDescription, !description.isEmpty {
+                        Text(description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(Int(ceil(goal.grainValue)))")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, .orange.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    Text("grains")
+                        .font(.caption2)
+                        .fontWeight(.medium)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Int(ceil(goal.grainValue)))")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(
+            .padding(16)
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
                         LinearGradient(
-                            colors: [.orange, .orange.opacity(0.8)],
+                            colors: [
+                                Color(uiColor: .systemBackground),
+                                statusColor.opacity(0.02)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-
-                Text("grains")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                    .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+                    .shadow(color: statusColor.opacity(0.08), radius: 6, x: 0, y: 2)
             }
-        }
-        .padding(16)
-        .background {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(uiColor: .systemBackground),
-                            statusColor.opacity(0.02)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        LinearGradient(
+                            colors: [statusColor.opacity(0.12), statusColor.opacity(0.04)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
                     )
-                )
-                .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
-                .shadow(color: statusColor.opacity(0.08), radius: 6, x: 0, y: 2)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 16))
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    LinearGradient(
-                        colors: [statusColor.opacity(0.12), statusColor.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Détail rapide d'objectif (depuis historique)
+
+struct GoalDetailSheet: View {
+    let goal: FirebaseGoal
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                FirebaseGoalCard(goal: goal)
+                    .padding()
+            }
+            .navigationTitle("Objectif")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
         }
     }
 }
