@@ -24,7 +24,6 @@ struct FirebaseCreateGoalView: View {
 
     @State private var title = ""
     @State private var description = ""
-    @State private var selectedCategory: GoalCategory = .personal
     @State private var selectedEffort: GoalEffort = .medium
     @State private var suggestedGrains = 3.0
     @State private var adjustment: Double = 0.0
@@ -32,25 +31,40 @@ struct FirebaseCreateGoalView: View {
     @State private var isEstimating = false
     @State private var estimateTask: Task<Void, Never>?
     @State private var isCreating = false
+    private let maxGoalsPerDay = 3
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canCreateGoal: Bool {
+        !trimmedTitle.isEmpty && !isCreating && todayGoalCount < maxGoalsPerDay
+    }
+
+    private var todayGoalCount: Int {
+        goalManager.todayGoals.count
+    }
+
+    private var displayedGoalCount: Int {
+        min(maxGoalsPerDay, todayGoalCount + (trimmedTitle.isEmpty ? 0 : 1))
+    }
 
     // Exemples suggérés par catégorie
     var categoryExamples: [String] {
-        switch selectedCategory {
-        case .physical:
-            return ["Courir 30min", "Yoga 45min", "Nager 1km"]
-        case .social:
-            return ["Appeler un ami", "Voir famille", "Sortir"]
-        case .creative:
-            return ["Dessiner", "Écrire", "Créer"]
-        case .professional:
-            return ["Lire 30min", "Coder 1h", "Projet"]
-        case .learning:
-            return ["Apprendre", "Étudier", "Former"]
-        case .personal:
-            return ["Méditer 10min", "Ranger bureau", "Réfléchir"]
-        case .household:
-            return ["Cuisiner", "Nettoyer", "Ranger"]
-        }
+        [
+            "Courir",
+            "Appeler mes proches",
+            "Boire 2L d'eau",
+            "Cuisiner maison",
+            "Dormir avant 23h",
+            "Marcher 8 000 pas",
+            "Ranger mon bureau",
+            "Étirer 15 min",
+            "Lire",
+            "Faire mon lit",
+            "Préparer mes affaires pour demain",
+            "Faire 30 pompes"
+        ]
     }
 
     var body: some View {
@@ -62,6 +76,14 @@ struct FirebaseCreateGoalView: View {
 
                 VStack(spacing: 0) {
                     headerSection
+
+                    if todayGoalCount >= maxGoalsPerDay {
+                        Text("Tu as atteint la limite de \(maxGoalsPerDay) objectifs pour aujourd'hui.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 8)
+                    }
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
@@ -92,9 +114,6 @@ struct FirebaseCreateGoalView: View {
             .onChange(of: title) { _, _ in
                 recalcSuggestion()
             }
-            .onChange(of: selectedCategory) { _, _ in
-                updateSuggestion()
-            }
         }
     }
 
@@ -111,6 +130,27 @@ struct FirebaseCreateGoalView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(uiColor: .systemGray6))
                 )
+                .submitLabel(.done)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(categoryExamples, id: \.self) { example in
+                        Button(example) {
+                            title = example
+                            updateSuggestion()
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(Color.orange.opacity(0.12))
+                        )
+                    }
+                }
+                .padding(.vertical, 2)
+            }
         }
     }
 
@@ -142,16 +182,6 @@ struct FirebaseCreateGoalView: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 24))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
                 Text("\(Int(ceil(finalGrains)))")
                     .font(.system(size: 48, weight: .bold))
                     .foregroundStyle(.orange)
@@ -259,34 +289,50 @@ struct FirebaseCreateGoalView: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(title.isEmpty ? Color.gray.opacity(0.3) : Color.orange)
+                    .fill(canCreateGoal ? Color.orange : Color.gray.opacity(0.3))
                     .shadow(
-                        color: title.isEmpty ? .clear : .orange.opacity(0.3),
+                        color: canCreateGoal ? .orange.opacity(0.3) : .clear,
                         radius: 8,
                         x: 0,
                         y: 4
                     )
             )
         }
-        .disabled(title.isEmpty || isCreating)
+        .disabled(!canCreateGoal)
     }
 
     private var headerSection: some View {
-        HStack(spacing: 8) {
-            Text("+")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.orange)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.12))
+                    .frame(width: 34, height: 34)
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.orange)
+            }
 
-            Text("Nouvel Objectif (0/3)")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.black)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nouvel objectif (\(displayedGoalCount)/\(maxGoalsPerDay))")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.black)
+                Text("Décris simplement ce que tu veux accomplir.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
-        .padding(.bottom, 24)
-        .background(Color.white)
+        .padding(.bottom, 16)
+        .background(
+            LinearGradient(
+                colors: [Color.white, Color.orange.opacity(0.05)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 
     private func createGoal() async {
@@ -294,9 +340,9 @@ struct FirebaseCreateGoalView: View {
 
         do {
             _ = try await goalManager.createGoal(
-                title: title,
+                title: trimmedTitle,
                 description: description.isEmpty ? nil : description,
-                category: selectedCategory,
+                category: inferredCategory(from: trimmedTitle),
                 baseValue: finalGrains
             )
 
@@ -343,7 +389,7 @@ struct FirebaseCreateGoalView: View {
     private func updateSuggestion() {
         let base = GoalSuggestionEngine.calculateGrainValue(
             for: title,
-            category: selectedCategory,
+            category: inferredCategory(from: title),
             estimatedDuration: nil,
             difficulty: selectedEffort.difficulty
         )
@@ -371,6 +417,17 @@ struct FirebaseCreateGoalView: View {
 
     private func roundUpGrain(_ value: Double) -> Double {
         ceil(value)
+    }
+
+    private func inferredCategory(from text: String) -> GoalCategory {
+        let q = text.lowercased()
+        if ["courir", "marche", "pas", "pompe", "sport", "étirer", "yoga"].contains(where: q.contains) { return .physical }
+        if ["appeler", "famille", "proches", "ami", "message"].contains(where: q.contains) { return .social }
+        if ["lire", "écrire", "dessin", "créer", "musique"].contains(where: q.contains) { return .creative }
+        if ["bureau", "travail", "projet", "focus", "deep work"].contains(where: q.contains) { return .professional }
+        if ["réviser", "apprendre", "cours", "leçon"].contains(where: q.contains) { return .learning }
+        if ["cuisiner", "lit", "affaires", "ranger", "nettoyer"].contains(where: q.contains) { return .household }
+        return .personal
     }
 }
 
@@ -410,6 +467,10 @@ struct FirebaseGoalCard: View {
     @State private var showValidation = false
     @State private var showPhoto = false
     @State private var showCommentEditor = false
+    @State private var isPinned = false
+    @State private var isLoadingPin = false
+    @State private var showPinToast = false
+    @State private var showPinSparkle = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -427,15 +488,42 @@ struct FirebaseGoalCard: View {
 
                 Spacer()
 
-                VStack(alignment: .trailing) {
-                    Text("\(Int(ceil(goal.grainValue)))")
-                        .font(.title3)
+                HStack(spacing: 6) {
+                    Text("\(Int(ceil(goal.grainValue))) grains")
+                        .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
 
-                    Text("grains")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                if goal.status == .completed {
+                    Button {
+                        Task {
+                            await togglePin()
+                        }
+                    } label: {
+                        Circle()
+                            .fill(isPinned ? Color.orange : Color(uiColor: .systemBackground))
+                            .frame(width: 30, height: 30)
+                            .overlay {
+                                Circle()
+                                    .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                            }
+                            .overlay {
+                                Image(systemName: isPinned ? "pin.fill" : "pin")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(isPinned ? .white : .orange)
+                            }
+                            .overlay {
+                                if showPinSparkle {
+                                    PinSparkleEffect()
+                                        .allowsHitTesting(false)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoadingPin)
+                    .opacity(isLoadingPin ? 0.6 : 1)
                 }
             }
 
@@ -479,6 +567,19 @@ struct FirebaseGoalCard: View {
                         .foregroundStyle(.green)
 
                     Spacer()
+
+                    if showPinToast {
+                        Text("Épinglé")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(Color.orange)
+                            )
+                            .transition(.opacity.combined(with: .scale))
+                    }
                 }
                 .padding(.vertical, 8)
 
@@ -542,6 +643,125 @@ struct FirebaseGoalCard: View {
         }
         .sheet(isPresented: $showCommentEditor) {
             GoalVictoryCommentEditor(goal: goal)
+        }
+        .task {
+            if goal.status == .completed {
+                await loadPinState()
+            }
+        }
+    }
+
+    private func goalPinKey() -> String {
+        goal.goalId
+    }
+
+    private func loadPinState() async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        do {
+            let pinned: Bool
+            if let victoryId = goal.victoryId, !victoryId.isEmpty {
+                pinned = try await VictoryManager.shared.isVictoryPinned(victoryId, userId: currentUserId)
+            } else {
+                pinned = try await GoalPinManager.shared.isGoalPinned(goalPinKey(), userId: currentUserId)
+            }
+            await MainActor.run {
+                isPinned = pinned
+            }
+        } catch {
+            print("Erreur chargement état épingle: \(error.localizedDescription)")
+        }
+    }
+
+    private func togglePin() async {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        let nextState = !isPinned
+        await MainActor.run {
+            isLoadingPin = true
+            isPinned = nextState
+            showPinSparkle = nextState
+        }
+
+        if nextState {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showPinSparkle = false
+                }
+            }
+        }
+
+        defer {
+            Task { @MainActor in
+                isLoadingPin = false
+            }
+        }
+
+        do {
+            if let victoryId = goal.victoryId, !victoryId.isEmpty {
+                if !nextState {
+                    try await VictoryManager.shared.unpinVictory(victoryId, userId: currentUserId)
+                } else {
+                    try await VictoryManager.shared.pinVictory(victoryId, userId: currentUserId)
+                    await showPinnedToast()
+                }
+            } else {
+                if !nextState {
+                    try await GoalPinManager.shared.unpinGoal(goalPinKey(), userId: currentUserId)
+                } else {
+                    try await GoalPinManager.shared.pinGoal(goalPinKey(), userId: currentUserId, goalData: [
+                        "goalId": goal.goalId,
+                        "title": goal.title,
+                        "emoji": goal.category.emoji,
+                        "grainValue": goal.grainValue,
+                        "createdAt": goal.createdAt.timeIntervalSince1970,
+                    ])
+                    await showPinnedToast()
+                }
+            }
+        } catch {
+            print("Erreur épinglage objectif: \(error.localizedDescription)")
+            await MainActor.run {
+                isPinned.toggle()
+                showPinSparkle = false
+            }
+        }
+    }
+
+    private func showPinnedToast() async {
+        await MainActor.run {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                showPinToast = true
+            }
+        }
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        await MainActor.run {
+            withAnimation(.easeOut(duration: 0.2)) {
+                showPinToast = false
+            }
+        }
+    }
+}
+
+private struct PinSparkleEffect: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<8, id: \.self) { index in
+                let angle = Double(index) * 45.0
+                Image(systemName: "sparkle")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.orange.opacity(0.85))
+                    .offset(y: animate ? -22 : -14)
+                    .rotationEffect(.degrees(angle))
+                    .opacity(animate ? 0 : 1)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.0)) {
+                animate = true
+            }
         }
     }
 }

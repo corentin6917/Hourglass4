@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import Combine
+import UserNotifications
 
 /// ViewModel principal pour gérer le sablier et l'état de l'application
 final class HourglassViewModel: ObservableObject {
@@ -267,7 +268,9 @@ final class HourglassViewModel: ObservableObject {
             guard notificationsEnabled else { return }
 
             do {
-                let authorized = try await NotificationManager.shared.requestAuthorization()
+                let center = UNUserNotificationCenter.current()
+                let settings = await center.notificationSettings()
+                let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
                 if authorized {
                     try await NotificationManager.shared.scheduleDailyNotifications()
                 }

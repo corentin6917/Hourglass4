@@ -9,8 +9,8 @@
 import SwiftUI
 
 struct NotificationPermissionView: View {
-    @ObservedObject private var notificationManager = NotificationPermissionManager.shared
     var onDismiss: () -> Void
+    var onAllow: () -> Void
 
     @State private var isRequestingPermission = false
 
@@ -80,14 +80,9 @@ struct NotificationPermissionView: View {
                         .cornerRadius(16, corners: [.topLeft, .topRight])
 
                         Button(action: {
-                            Task {
-                                isRequestingPermission = true
-                                // Fermer le popup avant de demander l'autorisation
-                                onDismiss()
-                                // Demander l'autorisation (la popup système d'Apple va s'afficher)
-                                await notificationManager.requestAuthorization()
-                                isRequestingPermission = false
-                            }
+                            isRequestingPermission = true
+                            onAllow()
+                            isRequestingPermission = false
                         }) {
                             Text("Autoriser")
                                 .font(.system(size: 17, weight: .semibold))
@@ -101,25 +96,6 @@ struct NotificationPermissionView: View {
                                         endPoint: .trailing
                                     )
                                 )
-                        }
-                        .disabled(isRequestingPermission)
-
-                        Button(action: {
-                            Task {
-                                isRequestingPermission = true
-                                // Fermer le popup avant de demander l'autorisation
-                                onDismiss()
-                                // Demander l'autorisation (la popup système d'Apple va s'afficher)
-                                await notificationManager.requestAuthorization()
-                                isRequestingPermission = false
-                            }
-                        }) {
-                            Text("Autoriser dans le Résumé programmé")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color.white.opacity(0.10))
                         }
                         .disabled(isRequestingPermission)
 
@@ -173,5 +149,5 @@ struct RoundedCorner: Shape {
 }
 
 #Preview {
-    NotificationPermissionView(onDismiss: {})
+    NotificationPermissionView(onDismiss: {}, onAllow: {})
 }

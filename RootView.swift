@@ -17,7 +17,10 @@ struct RootView: View {
     @State private var authListenerHandle: AuthStateDidChangeListenerHandle?
     @State private var showSplash = true
     @ObservedObject private var notificationManager = NotificationPermissionManager.shared
+    @ObservedObject private var deepLinkHandler = DeepLinkHandler.shared
     @State private var showNotificationPrompt = false
+    @State private var showValidateGoalSheet = false
+    @EnvironmentObject private var tutorialManager: TutorialManager
 
     var body: some View {
         ZStack {
@@ -39,8 +42,68 @@ struct RootView: View {
             if showNotificationPrompt {
                 NotificationPermissionView(onDismiss: {
                     showNotificationPrompt = false
+                }, onAllow: {
+                    showNotificationPrompt = false
+                    Task {
+                        _ = await notificationManager.requestAuthorization()
+                        await notificationManager.checkAuthorizationStatus()
+                    }
                 })
             }
+        }
+        .coordinateSpace(name: TutorialManager.coordinateSpaceName)
+        .overlayPreferenceValue(TutorialFrameKey.self) { frames in
+            GeometryReader { proxy in
+                if tutorialManager.isActive, let step = tutorialManager.currentStep {
+                    if let rect = frames[step.anchorId], rect.width > 0, rect.height > 0 {
+                        let localRect = rect.insetBy(dx: -step.highlightPadding, dy: -step.highlightPadding)
+                        let mainHighlight = TutorialHighlight(rect: localRect, cornerRadius: step.cornerRadius)
+                        let secondaryHighlight: TutorialHighlight? = {
+                            guard let secondaryId = step.secondaryAnchorId,
+                                  let secondaryRect = frames[secondaryId],
+                                  secondaryRect.width > 0,
+                                  secondaryRect.height > 0 else { return nil }
+                            let secondaryPadding = step.secondaryHighlightPadding ?? step.highlightPadding
+                            let localSecondaryRect = secondaryRect.insetBy(dx: -secondaryPadding, dy: -secondaryPadding)
+                            return TutorialHighlight(rect: localSecondaryRect, cornerRadius: step.secondaryCornerRadius)
+                        }()
+                        let highlights = [mainHighlight] + (secondaryHighlight.map { [$0] } ?? [])
+
+                        TutorialOverlayView(
+                            step: step,
+                            stepIndex: tutorialManager.currentStepIndex,
+                            totalSteps: tutorialManager.steps.count,
+                            highlightRect: localRect,
+                            highlights: highlights,
+                            onNext: { tutorialManager.next() },
+                            onSkip: { tutorialManager.skip() }
+                        )
+                        .onAppear {
+                            tutorialManager.reportFoundAnchor()
+                        }
+                    } else {
+                        Color.clear
+                            .allowsHitTesting(false)
+                            .onAppear {
+                                tutorialManager.reportMissingAnchor(for: step.id)
+                            }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $deepLinkHandler.showFriendRequestSheet) {
+            if let username = deepLinkHandler.pendingFriendRequest {
+                DeepLinkFriendRequestView(username: username)
+            }
+        }
+        .sheet(isPresented: $showValidateGoalSheet) {
+            // Sheet pour valider les objectifs depuis les notifications
+            NavigationStack {
+                ValidateGoalCameraView()
+            }
+        }
+        .onOpenURL { url in
+            deepLinkHandler.handle(url)
         }
         .onAppear {
             // État initial
@@ -50,6 +113,15 @@ struct RootView: View {
                 DispatchQueue.main.async {
                     isAuthenticated = (user != nil)
                 }
+            }
+
+            // Écouter les notifications pour ouvrir la caméra
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("OpenValidateGoal"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                showValidateGoalSheet = true
             }
 
             if showSplash {
@@ -89,65 +161,138 @@ struct RootView: View {
 }
 
 struct SplashView: View {
+    @State private var glow = false
+
     var body: some View {
         ZStack {
-            Color.white
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.99, blue: 0.97),
+                    Color(red: 1.0, green: 0.95, blue: 0.88)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            ShimmeringText(text: "Hourglass")
-        }
-    }
-}
+            Circle()
+                .fill(Color.orange.opacity(0.10))
+                .frame(width: glow ? 300 : 240, height: glow ? 300 : 240)
+                .blur(radius: 22)
+                .opacity(glow ? 1 : 0.75)
+                .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: glow)
 
-struct ShimmeringText: View {
-    let text: String
+            VStack(spacing: 20) {
+                RotatingHourglassView()
 
-    private var characters: [String] {
-        text.map { String($0) }
-    }
+                Text("Hourglass")
+                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(red: 0.98, green: 0.53, blue: 0.08), Color(red: 0.95, green: 0.66, blue: 0.21)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(characters.enumerated()), id: \.offset) { index, char in
-                ShimmerLetter(char: char, delay: Double(index) * 0.12)
+                Text("Ton temps devient héritage.")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
+            .padding(.top, -10)
+        }
+        .onAppear {
+            glow = true
         }
     }
 }
 
-struct ShimmerLetter: View {
-    let char: String
-    let delay: Double
-    @State private var animate = false
+struct RotatingHourglassView: View {
+    @State private var rotation: Double = 0
+    @State private var sandProgress: CGFloat = 0
+    @State private var sandOpacity: Double = 1
+    @State private var animationTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
-            Text(char)
-                .font(.system(size: 36, weight: .bold))
-                .foregroundStyle(.orange)
+            Circle()
+                .stroke(Color.orange.opacity(0.14), lineWidth: 1)
+                .frame(width: 132, height: 132)
 
-            Text(char)
-                .font(.system(size: 36, weight: .bold))
+            Circle()
+                .stroke(Color.orange.opacity(0.09), lineWidth: 1)
+                .frame(width: 152, height: 152)
+
+            Image(systemName: "hourglass")
+                .font(.system(size: 92, weight: .regular))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            Color.orange.opacity(0.4),
-                            Color.white.opacity(0.9),
-                            Color.orange.opacity(0.4)
+                            Color(red: 0.98, green: 0.53, blue: 0.08),
+                            Color(red: 0.95, green: 0.66, blue: 0.21)
                         ],
-                        startPoint: .leading,
-                        endPoint: .trailing
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
                 )
-                .mask(
-                    Rectangle()
-                        .fill(Color.white)
-                        .offset(x: animate ? 40 : -40)
-                )
+                .shadow(color: Color.orange.opacity(0.28), radius: 14, x: 0, y: 7)
+                .rotationEffect(.degrees(rotation))
+
+            Circle()
+                .fill(Color.orange.opacity(0.85))
+                .frame(width: 8, height: 8)
+                .offset(y: -18 + (sandProgress * 36))
+                .opacity(sandOpacity)
         }
+        .frame(width: 120, height: 120)
         .onAppear {
-            withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false).delay(delay)) {
-                animate = true
+            startAnimationLoop()
+        }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
+        }
+    }
+
+    private func startAnimationLoop() {
+        animationTask?.cancel()
+        animationTask = Task {
+            while !Task.isCancelled {
+                await MainActor.run {
+                    sandProgress = 0
+                    sandOpacity = 1
+                }
+
+                await MainActor.run {
+                    withAnimation(.linear(duration: 1.4)) {
+                        sandProgress = 1
+                    }
+                }
+
+                try? await Task.sleep(nanoseconds: 1_450_000_000)
+
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        sandOpacity = 0
+                    }
+                }
+
+                try? await Task.sleep(nanoseconds: 250_000_000)
+
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        rotation += 180
+                    }
+                }
+
+                try? await Task.sleep(nanoseconds: 650_000_000)
+
+                await MainActor.run {
+                    sandProgress = 0
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        sandOpacity = 1
+                    }
+                }
             }
         }
     }

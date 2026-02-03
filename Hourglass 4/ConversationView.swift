@@ -35,7 +35,7 @@ struct ConversationView: View {
             // Header avec nom et avatar
             conversationHeader
 
-            Divider()
+            themedDivider
 
             // Liste des messages
             ScrollViewReader { proxy in
@@ -61,13 +61,14 @@ struct ConversationView: View {
                 }
             }
 
-            Divider()
+            themedDivider
 
             // Barre de saisie
             messageInputBar
         }
         .navigationTitle(friendDisplayName)
         .navigationBarTitleDisplayMode(.inline)
+        .background(Theme.Colors.background)
         .onAppear {
             Task {
                 await loadMessages()
@@ -93,37 +94,41 @@ struct ConversationView: View {
                 imageURL: friend.profileImageURL,
                 username: friend.username,
                 size: 40,
-                gradientColors: [.orange, .orange.opacity(0.6)]
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
             )
 
             // Nom
             VStack(alignment: .leading, spacing: 2) {
                 Text(friendDisplayName)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(Theme.Typography.titleSmall)
+                    .foregroundStyle(Theme.Colors.textPrimary)
 
                 Text("@\(friend.username)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textTertiary)
             }
 
             Spacer()
         }
-        .padding()
-        .background(Color(uiColor: .systemBackground))
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.background)
     }
 
     private var messageInputBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Theme.Spacing.small) {
             // Champ de texte
             TextField("Message...", text: $messageText, axis: .vertical)
                 .textFieldStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, Theme.Spacing.medium)
+                .padding(.vertical, Theme.Spacing.small)
                 .background {
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(uiColor: .systemGray6))
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                        .fill(Theme.Colors.surface)
                 }
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                        .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+                )
                 .lineLimit(1...4)
 
             // Bouton Envoyer
@@ -134,12 +139,18 @@ struct ConversationView: View {
             } label: {
                 Image(systemName: isSending ? "hourglass" : "arrow.up.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(canSend ? .orange : .secondary)
+                    .foregroundStyle(canSend ? Theme.Colors.accent : Theme.Colors.textTertiary)
             }
             .disabled(!canSend)
         }
-        .padding()
-        .background(Color(uiColor: .systemBackground))
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.background)
+    }
+
+    private var themedDivider: some View {
+        Rectangle()
+            .fill(Theme.Colors.divider)
+            .frame(height: 1)
     }
 
     private func loadMessages() async {
@@ -197,18 +208,23 @@ struct MessageBubble: View {
 
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
                 Text(message.text)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .font(Theme.Typography.bodyMedium)
+                    .padding(.horizontal, Theme.Spacing.medium)
+                    .padding(.vertical, Theme.Spacing.small)
                     .background {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(isFromCurrentUser ? Color.orange : Color(uiColor: .systemGray5))
+                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                            .fill(isFromCurrentUser ? Theme.Colors.accent : Theme.Colors.surface)
                     }
-                    .foregroundStyle(isFromCurrentUser ? .white : .primary)
+                    .foregroundStyle(isFromCurrentUser ? .white : Theme.Colors.textPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                            .stroke(isFromCurrentUser ? Color.clear : Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+                    )
 
                 Text(message.createdAt.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
+                    .font(Theme.Typography.captionSmall)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .padding(.horizontal, Theme.Spacing.xxSmall)
             }
 
             if !isFromCurrentUser {

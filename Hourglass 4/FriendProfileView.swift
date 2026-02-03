@@ -167,7 +167,7 @@ struct FriendProfileView: View {
                 size: 110,
                 gradientColors: [profileColor, profileColor.opacity(0.6)]
             )
-            .shadow(color: profileColor.opacity(0.25), radius: 18, x: 0, y: 8)
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
 
             VStack(spacing: 6) {
                 Text(displayName)
@@ -244,7 +244,7 @@ struct FriendProfileView: View {
                 InfoMiniCard(
                     icon: "hourglass",
                     tint: .orange,
-                    title: "Héritage",
+                    title: "Sablier",
                     value: isLoadingHeritage ? "…" : "\(Int(heritageTotal))"
                 )
 
@@ -345,12 +345,12 @@ struct FriendProfileView: View {
                             )
                         )
 
-                    Text("Héritage de \(displayName)")
+                    Text("Sablier de \(displayName)")
                         .font(.headline)
                         .fontWeight(.bold)
                 }
 
-                Text("C'est le total de tous les grains que \(displayName) a accumulés depuis le début. Chaque objectif validé contribue à son héritage qui grandit jour après jour.")
+                Text("C'est le total de tous les grains que \(displayName) a accumulés depuis le début. Chaque objectif validé contribue à son sablier qui grandit jour après jour.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

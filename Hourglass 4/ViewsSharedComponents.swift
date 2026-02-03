@@ -308,6 +308,82 @@ struct CurrentUserAvatarButton: View {
     }
 }
 
+// MARK: - Page Header
+
+enum PageHeaderDateStyle {
+    case standard
+    case capsule
+}
+
+struct PageHeader: View {
+    let title: String
+    let dateText: String
+    var dateStyle: PageHeaderDateStyle = .standard
+    var onTitleTap: (() -> Void)? = nil
+    let onAvatarTap: () -> Void
+
+    @ViewBuilder
+    private func titleCapsule() -> some View {
+        Text(title)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.orange.opacity(0.12))
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                    }
+            )
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                if let onTitleTap {
+                    Button(action: onTitleTap) {
+                        titleCapsule()
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    titleCapsule()
+                }
+
+                if !dateText.isEmpty {
+                    switch dateStyle {
+                    case .standard:
+                        Text(dateText)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    case .capsule:
+                        Text(dateText)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.orange.opacity(0.12))
+                            )
+                    }
+                }
+            }
+
+            Spacer()
+
+            CurrentUserAvatarButton(size: 44) {
+                onAvatarTap()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.top, 16)
+    }
+}
+
 // MARK: - Objective Stat Card
 
 struct ObjectiveStatCard: View {

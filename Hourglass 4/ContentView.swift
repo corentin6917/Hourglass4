@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @StateObject private var viewModel: HourglassViewModel
+    @EnvironmentObject private var tutorialManager: TutorialManager
     
     init(modelContext: ModelContext) {
         _viewModel = StateObject(wrappedValue: HourglassViewModel(modelContext: modelContext))
@@ -21,7 +22,10 @@ struct ContentView: View {
                 // Initialiser le profil utilisateur si nécessaire
                 viewModel.initializeUserIfNeeded()
                 // S'assurer que le profil Firestore existe et est normalisé
-                Task { try? await UserManager.shared.ensureCurrentUserProfile() }
+                Task {
+                    try? await UserManager.shared.ensureCurrentUserProfile()
+                    await tutorialManager.startIfNeeded()
+                }
             }
     }
 }
@@ -35,8 +39,8 @@ struct ContentView: View {
         )
         
         return ContentView(modelContext: container.mainContext)
+            .environmentObject(TutorialManager.shared)
     } catch {
         return Text("Erreur de prévisualisation: \(error.localizedDescription)")
     }
 }
-

@@ -34,6 +34,7 @@ struct UserData: Identifiable, Codable {
     var isPublic: Bool
     var heritageTotal: Double?
     var usernameLastChangedAt: Date?
+    var tutorialCompleted: Bool
 
     init(
         uid: String,
@@ -46,7 +47,8 @@ struct UserData: Identifiable, Codable {
         profileImageURL: String? = nil,
         isPublic: Bool = true,
         heritageTotal: Double? = nil,
-        usernameLastChangedAt: Date? = nil
+        usernameLastChangedAt: Date? = nil,
+        tutorialCompleted: Bool = false
     ) {
         self.uid = uid
         self.email = email
@@ -59,6 +61,7 @@ struct UserData: Identifiable, Codable {
         self.isPublic = isPublic
         self.heritageTotal = heritageTotal
         self.usernameLastChangedAt = usernameLastChangedAt
+        self.tutorialCompleted = tutorialCompleted
     }
 
     var dictionary: [String: Any] {
@@ -71,7 +74,8 @@ struct UserData: Identifiable, Codable {
             "birthDate": Timestamp(date: birthDate),
             "createdAt": Timestamp(date: createdAt),
             "isPublic": isPublic,
-            "heritageTotal": heritageTotal ?? 0
+            "heritageTotal": heritageTotal ?? 0,
+            "tutorialCompleted": tutorialCompleted
         ]
 
         if let imageURL = profileImageURL {
@@ -92,8 +96,16 @@ class UserManager: ObservableObject {
     private let functions = Functions.functions(region: "europe-west1")
 
     @Published var cachedUsers: [String: UserData] = [:]
+    var currentUserId: String? { Auth.auth().currentUser?.uid }
 
     private init() {}
+
+    func updateFcmToken(_ token: String) async throws {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        try await db.collection("users").document(currentUserId).updateData([
+            "fcmTokens": FieldValue.arrayUnion([token])
+        ])
+    }
 
     // Vérifier si un nom d'utilisateur existe déjà
     func isUsernameAvailable(_ username: String) async throws -> Bool {
@@ -153,7 +165,8 @@ class UserManager: ObservableObject {
             "usernameLastChangedAt": Timestamp(date: Date()),
             "isPublic": true,
             "heritageTotal": 0,
-            "heritageBackfilled": true
+            "heritageBackfilled": true,
+            "tutorialCompleted": false
         ]
 
         try await db.collection("users").document(uid).setData(userData)
@@ -179,6 +192,7 @@ class UserManager: ObservableObject {
         let profileImageURL = data["profileImageURL"] as? String
         let isPublic = data["isPublic"] as? Bool ?? true
         let heritageTotal = data["heritageTotal"] as? Double
+        let tutorialCompleted = data["tutorialCompleted"] as? Bool ?? false
 
         return UserData(
             uid: uid,
@@ -191,7 +205,20 @@ class UserManager: ObservableObject {
             profileImageURL: profileImageURL,
             isPublic: isPublic,
             heritageTotal: heritageTotal,
-            usernameLastChangedAt: usernameLastChangedAt
+            usernameLastChangedAt: usernameLastChangedAt,
+            tutorialCompleted: tutorialCompleted
+        )
+    }
+
+    func getTutorialCompleted(uid: String) async throws -> Bool {
+        let document = try await db.collection("users").document(uid).getDocument()
+        return document.data()?["tutorialCompleted"] as? Bool ?? true
+    }
+
+    func setTutorialCompleted(uid: String, completed: Bool) async throws {
+        try await db.collection("users").document(uid).setData(
+            ["tutorialCompleted": completed],
+            merge: true
         )
     }
 

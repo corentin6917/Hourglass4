@@ -63,8 +63,8 @@ final class NotificationManager {
     
     private func scheduleMorningNotification() async throws {
         let content = UNMutableNotificationContent()
-        content.title = "Grains Disponibles ⏳"
-        content.body = "Tes 10 grains t'attendent. Quels sont tes objectifs aujourd'hui ?"
+        content.title = "Tes grains t'attendent"
+        content.body = "Fixe tes objectifs du jour et commence fort."
         content.sound = soundsEnabled ? .default : nil
         content.badge = 1
 
@@ -86,7 +86,7 @@ final class NotificationManager {
     
     private func scheduleEveningNotification() async throws {
         let content = UNMutableNotificationContent()
-        content.title = "Le Fil s'est rafraîchi ✨"
+        content.title = "Le Fil s'est rafraîchi"
         content.body = "Tes amis ont partagé leurs victoires. Va les voir !"
         content.sound = soundsEnabled ? .default : nil
         content.badge = 1

@@ -261,6 +261,42 @@ class VictoryManager: ObservableObject {
         }
     }
 
+    // MARK: - Charger mes victoires actives
+
+    func loadMyActiveVictories() async throws {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            await MainActor.run {
+                self.victories = []
+                self.isLoading = false
+            }
+            return
+        }
+
+        await MainActor.run {
+            isLoading = true
+        }
+
+        let now = Date()
+        let twoDaysAgo = AppTimeZone.calendar.date(byAdding: .day, value: -2, to: now) ?? now
+
+        let snapshot = try await db.collection("victories")
+            .whereField("userId", isEqualTo: currentUserId)
+            .whereField("createdAt", isGreaterThan: Timestamp(date: twoDaysAgo))
+            .order(by: "createdAt", descending: true)
+            .limit(to: 100)
+            .getDocuments()
+
+        let allVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
+        let activeVictories = allVictories.filter { victory in
+            now >= victory.visibleAt && now <= victory.expiresAt
+        }
+
+        await MainActor.run {
+            self.victories = activeVictories
+            self.isLoading = false
+        }
+    }
+
     // MARK: - Booster une victoire (Éclat de Grain)
 
     func fetchDailyGrainSpent() async throws -> Double {
@@ -287,6 +323,7 @@ class VictoryManager: ObservableObject {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
             throw NSError(domain: "VictoryManager", code: 401)
         }
+        let fromUser = try? await UserManager.shared.getUserProfile(uid: currentUserId)
 
         // Vérifier que l'utilisateur n'a pas déjà donné
         if victory.boostedBy.contains(currentUserId) {
@@ -327,6 +364,10 @@ class VictoryManager: ObservableObject {
                 self.victories[index].boostCount += 1
                 self.victories[index].boostedBy.append(currentUserId)
             }
+        }
+
+        if let fromUser {
+            try? await createBoostNotification(victory: victory, fromUser: fromUser)
         }
 
         return newSpent
@@ -385,7 +426,7 @@ class VictoryManager: ObservableObject {
 
     // MARK: - Commenter une victoire
 
-    func commentVictory(_ victory: Victory, text: String) async throws {
+    func commentVictory(_ victory: Victory, text: String, mentionedUsers: [UserData] = []) async throws {
         guard let currentUser = Auth.auth().currentUser else {
             throw NSError(domain: "VictoryManager", code: 401)
         }
@@ -417,7 +458,94 @@ class VictoryManager: ObservableObject {
         ])
 
         // TODO: Déduire 0.1 grain du commentateur
-        // TODO: Créer une notification pour le créateur
+        try await createMentionNotifications(
+            victory: victory,
+            comment: comment,
+            fromUser: userData,
+            mentionedUsers: mentionedUsers
+        )
+        try? await createCommentNotification(victory: victory, comment: comment, fromUser: userData)
+    }
+
+    private func createMentionNotifications(
+        victory: Victory,
+        comment: VictoryComment,
+        fromUser: UserData,
+        mentionedUsers: [UserData]
+    ) async throws {
+        guard !mentionedUsers.isEmpty else { return }
+
+        let uniqueUsers = Dictionary(grouping: mentionedUsers, by: { $0.uid }).compactMap { $0.value.first }
+        let notificationsRef = db.collection("notifications")
+
+        for user in uniqueUsers {
+            if user.uid == fromUser.uid { continue }
+            let data: [String: Any] = [
+                "type": "mention",
+                "fromUserId": fromUser.uid,
+                "fromUsername": fromUser.username,
+                "fromDisplayName": fromUser.displayName ?? "",
+                "fromProfileImageURL": fromUser.profileImageURL ?? "",
+                "toUserId": user.uid,
+                "victoryId": victory.victoryId,
+                "victoryTitle": victory.goalTitle,
+                "victoryEmoji": victory.goalEmoji,
+                "commentId": comment.commentId,
+                "text": comment.text,
+                "createdAt": Timestamp(date: Date()),
+                "isRead": false
+            ]
+            try await notificationsRef.addDocument(data: data)
+        }
+    }
+
+    private func createCommentNotification(
+        victory: Victory,
+        comment: VictoryComment,
+        fromUser: UserData
+    ) async throws {
+        guard victory.userId != fromUser.uid else { return }
+
+        let data: [String: Any] = [
+            "type": "comment",
+            "fromUserId": fromUser.uid,
+            "fromUsername": fromUser.username,
+            "fromDisplayName": fromUser.displayName ?? "",
+            "fromProfileImageURL": fromUser.profileImageURL ?? "",
+            "toUserId": victory.userId,
+            "victoryId": victory.victoryId,
+            "victoryTitle": victory.goalTitle,
+            "victoryEmoji": victory.goalEmoji,
+            "commentId": comment.commentId,
+            "text": comment.text,
+            "createdAt": Timestamp(date: Date()),
+            "isRead": false
+        ]
+        try await db.collection("notifications").addDocument(data: data)
+    }
+
+    private func createBoostNotification(
+        victory: Victory,
+        fromUser: UserData
+    ) async throws {
+        guard victory.userId != fromUser.uid else { return }
+
+        let data: [String: Any] = [
+            "type": "boost",
+            "fromUserId": fromUser.uid,
+            "fromUsername": fromUser.username,
+            "fromDisplayName": fromUser.displayName ?? "",
+            "fromProfileImageURL": fromUser.profileImageURL ?? "",
+            "toUserId": victory.userId,
+            "victoryId": victory.victoryId,
+            "victoryTitle": victory.goalTitle,
+            "victoryEmoji": victory.goalEmoji,
+            "grainAmount": 1,
+            "text": "",
+            "createdAt": Timestamp(date: Date()),
+            "isRead": false
+        ]
+        try await db.collection("notifications").addDocument(data: data)
     }
 
     // MARK: - Charger les commentaires
@@ -450,6 +578,16 @@ class VictoryManager: ObservableObject {
                 createdAt: createdAtTimestamp.dateValue()
             )
         }
+    }
+
+    func fetchVictory(by victoryId: String) async throws -> Victory? {
+        let snapshot = try await db.collection("victories")
+            .whereField("victoryId", isEqualTo: victoryId)
+            .limit(to: 1)
+            .getDocuments()
+
+        guard let doc = snapshot.documents.first else { return nil }
+        return Victory.from(document: doc)
     }
 
     // MARK: - Nettoyer les victoires expirées (à appeler périodiquement)
@@ -516,15 +654,15 @@ class VictoryManager: ObservableObject {
             ])
         }
 
-        try await userRef.updateData([
+        try await userRef.setData([
             "pinnedVictoryIds": FieldValue.arrayUnion([victoryId])
-        ])
+        ], merge: true)
     }
 
     func unpinVictory(_ victoryId: String, userId: String) async throws {
         let userRef = db.collection("users").document(userId)
-        try await userRef.updateData([
+        try await userRef.setData([
             "pinnedVictoryIds": FieldValue.arrayRemove([victoryId])
-        ])
+        ], merge: true)
     }
 }

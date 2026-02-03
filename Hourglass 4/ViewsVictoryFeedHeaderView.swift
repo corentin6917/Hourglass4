@@ -14,8 +14,19 @@ struct VictoryFeedHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Text("Fil des victoires")
-                    .font(.largeTitle).bold()
+                Text("Fil des Victoires")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.orange.opacity(0.12))
+                            .overlay {
+                                Capsule()
+                                    .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                            }
+                    )
                     .accessibilityAddTraits(.isHeader)
 
                 Button(action: {

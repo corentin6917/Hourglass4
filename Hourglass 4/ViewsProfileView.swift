@@ -21,6 +21,7 @@ struct ProfileView: View {
     @State private var unreadMessagesCount = 0
     @State private var showSettings = false
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var tutorialManager: TutorialManager
     
     var body: some View {
         NavigationStack {
@@ -46,46 +47,48 @@ struct ProfileView: View {
                         Image(systemName: "gearshape")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.secondary)
+                            .frame(width: 34, height: 34, alignment: .center)
                     }
+                    .padding(.leading, 6)
                 }
 
-                // Bouton Messages avec badge
+                // Boutons à droite
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showMessages = true
-                    } label: {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "message")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(.orange)
-                                .symbolRenderingMode(.hierarchical)
+                    HStack(spacing: 12) {
+                        Button {
+                            showMessages = true
+                        } label: {
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "message")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.orange)
+                                    .symbolRenderingMode(.hierarchical)
 
-                            if unreadMessagesCount > 0 {
-                                Text("\(unreadMessagesCount)")
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                                    .padding(4)
-                                    .background {
-                                        Circle()
-                                            .fill(.red)
-                                    }
-                                    .offset(x: 8, y: -8)
+                                if unreadMessagesCount > 0 {
+                                    Text("\(unreadMessagesCount)")
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white)
+                                        .padding(4)
+                                        .background {
+                                            Circle()
+                                                .fill(.red)
+                                        }
+                                        .offset(x: 8, y: -8)
+                                }
                             }
+                            .padding(8)
+                            .contentShape(Circle())
                         }
-                        .padding(8)
-                        .contentShape(Circle())
-                    }
-                }
 
-                // Bouton Fermer
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(.secondary)
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .padding(.trailing, 6)
                 }
             }
             .sheet(isPresented: $showEditProfile) {
@@ -104,6 +107,11 @@ struct ProfileView: View {
                 Task {
                     // Charger le nombre de messages non lus
                     unreadMessagesCount = (try? await FriendMessageManager.shared.getUnreadMessagesCount()) ?? 0
+                }
+            }
+            .onChange(of: tutorialManager.isActive) { _, isActive in
+                if isActive {
+                    dismiss()
                 }
             }
         }
@@ -217,7 +225,7 @@ struct MainProfileCard: View {
                             .frame(height: 30)
                         StatItem(
                             title: isLoadingHeritage ? "…" : "\(Int(heritageTotal))",
-                            subtitle: "Héritage"
+                            subtitle: "Sablier"
                         )
                         .onTapGesture {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -230,40 +238,20 @@ struct MainProfileCard: View {
                     }
 
                     if showHeritageInfo {
-                        VStack(spacing: 0) {
-                            InfoBubbleTriangleUp()
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Ton Sablier")
+                                .font(.system(size: 14, weight: .semibold))
+
+                            Text("C'est le total de tous les grains que tu as accumulés depuis le début. Chaque objectif validé contribue à ton sablier qui grandit jour après jour.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(16)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
                                 .fill(Color(uiColor: .systemBackground))
-                                .frame(width: 20, height: 10)
-                                .shadow(color: .orange.opacity(0.15), radius: 4, x: 0, y: -2)
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "hourglass.circle.fill")
-                                        .font(.title3)
-                                        .foregroundStyle(
-                                            LinearGradient(
-                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-
-                                    Text("Ton Héritage")
-                                        .font(.headline)
-                                        .fontWeight(.bold)
-                                }
-
-                                Text("C'est le total de tous les grains que tu as accumulés depuis le début. Chaque objectif validé contribue à ton héritage qui grandit jour après jour.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(16)
-                            .background {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(uiColor: .systemBackground))
-                                    .shadow(color: .orange.opacity(0.25), radius: 16, x: 0, y: 8)
-                            }
+                                .shadow(color: .orange.opacity(0.25), radius: 16, x: 0, y: 8)
                         }
                         .frame(maxWidth: 280)
                         .transition(.scale.combined(with: .opacity))
@@ -303,7 +291,7 @@ struct MainProfileCard: View {
                             .overlay {
                                 Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.orange)
                             }
                     }
                 }
@@ -459,11 +447,10 @@ struct MainProfileCard: View {
         text += "👤 \(displayName)\n"
         text += "✨ @\(username)\n"
 
-        if let birthDate = userData?.birthDate {
-            text += "🎂 Né(e) le \(AppTimeZone.formatDate(birthDate, style: .medium))\n"
-        }
-
-        text += "\n⏳ Télécharge l'app Hourglass 4 pour me suivre !"
+        text += "\n👉 Clique ici pour m'ajouter :\n"
+        let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let encodedUsername = normalizedUsername.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedUsername
+        text += "hourglass://addFriend?username=\(encodedUsername)"
 
         return text
     }
@@ -545,7 +532,7 @@ struct FriendsSection: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    SettingsIcon(symbol: "person.2.fill", color: .blue)
+                    SettingsIcon(symbol: "person.2.fill", color: .orange)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Sabliers Complices")
                             .font(.subheadline)
@@ -806,7 +793,7 @@ struct RealFriendCard: View {
         .padding(.vertical, 12)
         .background {
             RoundedRectangle(cornerRadius: 15)
-                .fill(Color(uiColor: .secondarySystemBackground))
+                .fill(Color.orange.opacity(0.06))
         }
         .alert("Supprimer cet ami ?", isPresented: $showDeleteConfirmation) {
             Button("Annuler", role: .cancel) {}
@@ -885,7 +872,17 @@ struct SettingsIcon: View {
 
     var body: some View {
         Circle()
-            .fill(color.opacity(0.18))
+            .fill(
+                LinearGradient(
+                    colors: [color.opacity(0.22), color.opacity(0.08)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay {
+                Circle()
+                    .stroke(color.opacity(0.25), lineWidth: 1)
+            }
             .frame(width: 34, height: 34)
             .overlay {
                 Image(systemName: symbol)
@@ -899,6 +896,7 @@ struct SettingsIcon: View {
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var tutorialManager: TutorialManager
     @AppStorage("settings.notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("settings.soundsEnabled") private var soundsEnabled = true
     @AppStorage("settings.calmModeEnabled") private var calmModeEnabled = false
@@ -908,9 +906,10 @@ struct SettingsView: View {
     @State private var showHelp = false
     @State private var showAbout = false
     @State private var showTimezonePicker = false
-    @State private var showTutorial = false
     @State private var showLogoutConfirmation = false
     @State private var showDeleteConfirmation = false
+    @State private var showDeletePhraseConfirmation = false
+    @State private var deletePhraseInput = ""
     @State private var isPublic = true
     @State private var isLoadingProfile = false
 
@@ -919,11 +918,29 @@ struct SettingsView: View {
         return tz.localizedName(for: .standard, locale: Locale(identifier: "fr_FR")) ?? tz.identifier
     }
 
+    private let accentOrange = Color(red: 1.0, green: 0.6, blue: 0.0)
+    private let accentCoral = Color(red: 1.0, green: 0.45, blue: 0.35)
+    private let accentSand = Color(red: 0.98, green: 0.72, blue: 0.36)
+    private let accentPeach = Color(red: 1.0, green: 0.68, blue: 0.4)
+    private let accentRose = Color(red: 0.95, green: 0.55, blue: 0.62)
+    private let deletePhrase = "SUPPRIMER MON COMPTE"
+
+    private var isDeletePhraseValid: Bool {
+        deletePhraseInput.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == deletePhrase
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
+                LinearGradient(
+                    colors: [
+                        Color.white,
+                        Color.orange.opacity(0.05)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
@@ -933,7 +950,7 @@ struct SettingsView: View {
                         VStack(spacing: 0) {
                             SettingsRow(
                                 symbol: "eye.fill",
-                                color: .orange,
+                                color: accentOrange,
                                 title: "Profil public",
                                 subtitle: isPublic ? "Visible" : "Privé"
                             ) {
@@ -943,6 +960,7 @@ struct SettingsView: View {
                                 } else {
                                     Toggle("", isOn: $isPublic)
                                         .labelsHidden()
+                                        .tint(accentOrange)
                                 }
                             }
 
@@ -950,36 +968,39 @@ struct SettingsView: View {
 
                             SettingsRow(
                                 symbol: "bell.fill",
-                                color: .orange,
+                                color: accentCoral,
                                 title: "Notifications",
                                 subtitle: notificationsEnabled ? "Activées" : "Désactivées"
                             ) {
                                 Toggle("", isOn: $notificationsEnabled)
                                     .labelsHidden()
+                                    .tint(accentCoral)
                             }
 
                             Divider()
 
                             SettingsRow(
                                 symbol: "speaker.wave.2.fill",
-                                color: .green,
+                                color: accentSand,
                                 title: "Sons",
                                 subtitle: soundsEnabled ? "Activés" : "Désactivés"
                             ) {
                                 Toggle("", isOn: $soundsEnabled)
                                     .labelsHidden()
+                                    .tint(accentSand)
                             }
 
                             Divider()
 
                             SettingsRow(
                                 symbol: "moon.fill",
-                                color: .purple,
+                                color: accentRose,
                                 title: "Mode calme",
                                 subtitle: calmModeEnabled ? "Activé" : "Désactivé"
                             ) {
                                 Toggle("", isOn: $calmModeEnabled)
                                     .labelsHidden()
+                                    .tint(accentRose)
                             }
                         }
                         .background {
@@ -995,7 +1016,7 @@ struct SettingsView: View {
                             } label: {
                                 SettingsRow(
                                     symbol: "globe.europe.africa.fill",
-                                    color: .blue,
+                                    color: accentPeach,
                                     title: "Fuseau horaire",
                                     subtitle: timezoneLabel
                                 ) {
@@ -1012,7 +1033,7 @@ struct SettingsView: View {
                             } label: {
                                 SettingsRow(
                                     symbol: "square.and.arrow.up",
-                                    color: .orange,
+                                    color: accentOrange,
                                     title: "Partager Hourglass",
                                     subtitle: nil
                                 ) {
@@ -1029,7 +1050,7 @@ struct SettingsView: View {
                             } label: {
                                 SettingsRow(
                                     symbol: "questionmark.circle.fill",
-                                    color: .gray,
+                                    color: accentSand,
                                     title: "Aide",
                                     subtitle: nil
                                 ) {
@@ -1042,11 +1063,12 @@ struct SettingsView: View {
                             Divider()
 
                             Button {
-                                showTutorial = true
+                                tutorialManager.start(force: true)
+                                dismiss()
                             } label: {
                                 SettingsRow(
                                     symbol: "arrow.counterclockwise",
-                                    color: .purple,
+                                    color: accentCoral,
                                     title: "Revoir le tutoriel",
                                     subtitle: nil
                                 ) {
@@ -1063,7 +1085,7 @@ struct SettingsView: View {
                             } label: {
                                 SettingsRow(
                                     symbol: "info.circle.fill",
-                                    color: .gray,
+                                    color: accentPeach,
                                     title: "À propos",
                                     subtitle: nil
                                 ) {
@@ -1155,14 +1177,27 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert("Revoir le tutoriel", isPresented: $showTutorial) {
-                Button("OK", role: .cancel) { }
-            }
             .alert("Supprimer le compte", isPresented: $showDeleteConfirmation) {
                 Button("Annuler", role: .cancel) {}
-                Button("Supprimer", role: .destructive) {}
+                Button("Supprimer", role: .destructive) {
+                    deletePhraseInput = ""
+                    showDeletePhraseConfirmation = true
+                }
             } message: {
                 Text("Cette action est irréversible.")
+            }
+            .alert("Confirmation finale", isPresented: $showDeletePhraseConfirmation) {
+                TextField("Tape \(deletePhrase)", text: $deletePhraseInput)
+                    .textInputAutocapitalization(.characters)
+                Button("Annuler", role: .cancel) {
+                    deletePhraseInput = ""
+                }
+                Button("Confirmer la suppression", role: .destructive) {
+                    // TODO: Brancher ici la suppression définitive du compte (Auth + Firestore + Storage).
+                }
+                .disabled(!isDeletePhraseValid)
+            } message: {
+                Text("Pour confirmer, recopie exactement : \(deletePhrase)")
             }
             .onAppear {
                 guard let currentUser = Auth.auth().currentUser else { return }
@@ -1424,10 +1459,12 @@ struct SettingsHelpView: View {
 
 struct SettingsAboutView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var showTerms = false
+    @State private var showPrivacy = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
+            VStack(spacing: 16) {
                 Text("Hourglass")
                     .font(.title2)
                     .fontWeight(.bold)
@@ -1437,10 +1474,113 @@ struct SettingsAboutView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
+                Button {
+                    showTerms = true
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Conditions générales d'utilisation")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text("Consulter les règles d'utilisation de l'app")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    showPrivacy = true
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Politique de confidentialité")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text("Comprendre quelles données sont utilisées")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+                }
+                .buttonStyle(.plain)
+
                 Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(24)
             .navigationTitle("À propos")
+            .navigationBarTitleDisplayMode(.inline)
+            .tint(.orange)
+            .sheet(isPresented: $showTerms) {
+                SettingsTermsView()
+            }
+            .sheet(isPresented: $showPrivacy) {
+                SettingsPrivacyView()
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+}
+
+struct SettingsTermsView: View {
+    @Environment(\.dismiss) private var dismiss
+    private let lastUpdate = "3 février 2026"
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Conditions Générales d'Utilisation")
+                        .font(.title3.weight(.bold))
+                    Text("Dernière mise à jour : \(lastUpdate)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(Array(termsSections.enumerated()), id: \.offset) { _, section in
+                        sectionTitle(section.title)
+                        ForEach(Array(section.paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                            sectionText(paragraph)
+                        }
+                        if !section.bullets.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(Array(section.bullets.enumerated()), id: \.offset) { _, bullet in
+                                    Text("• \(bullet)")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(.top, 2)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("CGU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -1448,6 +1588,395 @@ struct SettingsAboutView: View {
                 }
             }
         }
+    }
+
+    private var termsSections: [TermsSection] {
+        [
+            TermsSection(
+                title: "1. Éditeur et contact",
+                paragraphs: [
+                    "L'application Hourglass 4 (ci-après « l'Application ») est éditée par [Nom société / Nom prénom], [forme juridique], immatriculée sous le numéro [SIREN/SIRET], dont le siège est situé [adresse complète].",
+                    "Pour toute question, vous pouvez écrire à : support [email support] ; demandes juridiques et données personnelles [email juridique]."
+                ]
+            ),
+            TermsSection(
+                title: "2. Acceptation des conditions",
+                paragraphs: [
+                    "Les présentes Conditions Générales d'Utilisation (« CGU ») encadrent l'accès et l'utilisation de l'Application.",
+                    "En créant un compte ou en utilisant l'Application, vous reconnaissez avoir lu et accepté les CGU.",
+                    "Si vous n'acceptez pas ces CGU, vous ne devez pas utiliser l'Application."
+                ]
+            ),
+            TermsSection(
+                title: "3. Âge minimum et utilisateurs mineurs",
+                paragraphs: [
+                    "L'Application n'est pas destinée aux utilisateurs de moins de 13 ans.",
+                    "Si vous avez entre 13 et 15 ans, vous déclarez disposer de l'autorisation de votre représentant légal pour utiliser l'Application.",
+                    "En cas de doute sur la compréhension de ces CGU, demandez l'aide d'un adulte de confiance."
+                ]
+            ),
+            TermsSection(
+                title: "4. Objet de l'application",
+                paragraphs: [
+                    "Hourglass 4 permet de créer des objectifs quotidiens, de les valider, de suivre votre progression via un système de grains et d'interagir avec d'autres utilisateurs."
+                ]
+            ),
+            TermsSection(
+                title: "5. Création de compte et sécurité",
+                paragraphs: [
+                    "Vous vous engagez à fournir des informations exactes lors de la création et de la gestion de votre compte.",
+                    "Vous êtes responsable de la confidentialité de vos identifiants, de votre appareil et de toute action effectuée depuis votre compte.",
+                    "Vous devez nous signaler rapidement toute utilisation non autorisée de votre compte."
+                ]
+            ),
+            TermsSection(
+                title: "6. Disponibilité de l'application",
+                paragraphs: [
+                    "L'Application est fournie « en l'état ». Nous faisons des efforts raisonnables pour en assurer la continuité, sans garantie d'absence d'interruption, de bug ou d'indisponibilité temporaire.",
+                    "Des opérations de maintenance, des mises à jour ou des incidents techniques peuvent affecter l'accès au service."
+                ]
+            ),
+            TermsSection(
+                title: "7. Utilisation autorisée",
+                paragraphs: [
+                    "Vous vous engagez à utiliser l'application conformément à la loi et de manière respectueuse des autres."
+                ],
+                bullets: [
+                    "Contenus illicites, haineux, menaçants ou harcelants interdits.",
+                    "Usurpation d'identité, fraude et automatisation abusive interdites.",
+                    "Tentatives de perturbation technique du service interdites."
+                ]
+            ),
+            TermsSection(
+                title: "8. Règles communautaires",
+                paragraphs: [
+                    "Les échanges doivent rester respectueux. Toute forme de harcèlement, intimidation, discrimination ou diffusion de contenus choquants est interdite.",
+                    "Nous pouvons modérer les contenus, masquer certains éléments ou restreindre des interactions afin de préserver un environnement sûr."
+                ]
+            ),
+            TermsSection(
+                title: "9. Fonctionnement des objectifs quotidiens",
+                paragraphs: [
+                    "Vous définissez vous-même vos objectifs quotidiens. L'Application propose des suggestions, mais vous restez responsable de vos choix.",
+                    "Hourglass 4 ne constitue pas un service médical, psychologique ou de coaching professionnel.",
+                    "Vous devez adapter vos objectifs à votre situation personnelle, votre santé et vos capacités."
+                ]
+            ),
+            TermsSection(
+                title: "10. Grains et progression",
+                paragraphs: [
+                    "Les grains sont une mécanique interne de progression et de motivation.",
+                    "Le calcul des grains peut évoluer pour améliorer l'expérience utilisateur."
+                ],
+                bullets: [
+                    "Les grains n'ont aucune valeur monétaire.",
+                    "Ils ne peuvent pas être convertis en argent, en cryptomonnaie ou en avantage financier.",
+                    "Ils ne constituent pas un droit patrimonial ni un titre de propriété."
+                ]
+            ),
+            TermsSection(
+                title: "11. Complices, fil et interactions",
+                paragraphs: [
+                    "Vous êtes responsable de vos interactions sociales (amis, commentaires, messages, réactions).",
+                    "Hourglass 4 peut limiter certaines fonctionnalités sociales en cas d'abus, de spam ou de non-respect des CGU."
+                ]
+            ),
+            TermsSection(
+                title: "12. Contenus publiés",
+                paragraphs: [
+                    "Vous restez propriétaire des contenus que vous publiez dans l'Application.",
+                    "En publiant un contenu, vous accordez à Hourglass 4 une licence non exclusive, mondiale, gratuite et limitée au fonctionnement du service pour héberger, traiter, afficher et distribuer ce contenu au sein de l'Application.",
+                    "Cette licence prend fin lorsque le contenu est supprimé, sous réserve des obligations légales de conservation."
+                ],
+                bullets: [
+                    "Vous garantissez disposer des droits nécessaires sur les contenus que vous publiez.",
+                    "Vous vous engagez à ne pas publier de contenu portant atteinte aux droits de tiers."
+                ]
+            ),
+            TermsSection(
+                title: "13. Contenus signalés et modération",
+                paragraphs: [
+                    "Tout utilisateur peut signaler un contenu ou un comportement qu'il estime contraire aux CGU ou à la loi.",
+                    "Nous pouvons, selon la gravité des faits, supprimer un contenu, masquer un profil, suspendre temporairement un compte ou procéder à une suppression définitive."
+                ]
+            ),
+            TermsSection(
+                title: "14. Notifications et permissions",
+                paragraphs: [
+                    "Si vous activez les notifications, Hourglass 4 peut vous envoyer des rappels liés à vos objectifs et à l'activité de l'application.",
+                    "Vous pouvez modifier les permissions à tout moment depuis l'application ou les réglages iOS."
+                ]
+            ),
+            TermsSection(
+                title: "15. Services tiers et dépendances techniques",
+                paragraphs: [
+                    "L'Application peut s'appuyer sur des services tiers (par exemple hébergement cloud, envoi de notifications, authentification).",
+                    "Leur indisponibilité peut impacter temporairement certaines fonctionnalités sans engager la responsabilité d'Hourglass 4 au-delà des obligations légales applicables."
+                ]
+            ),
+            TermsSection(
+                title: "16. Propriété intellectuelle",
+                paragraphs: [
+                    "Le code, l'interface, les éléments graphiques, la marque « Hourglass 4 » et les éléments distinctifs de l'Application sont protégés par les lois sur la propriété intellectuelle.",
+                    "Toute reproduction, extraction, décompilation, adaptation ou réutilisation non autorisée est interdite, sauf disposition légale impérative."
+                ]
+            ),
+            TermsSection(
+                title: "17. Suspension et suppression de compte",
+                paragraphs: [
+                    "Nous pouvons suspendre ou supprimer un compte en cas de violation des CGU, d'abus ou de risque de sécurité.",
+                    "Vous pouvez demander la suppression de votre compte selon les modalités prévues dans l'application."
+                ]
+            ),
+            TermsSection(
+                title: "18. Résiliation par l'utilisateur",
+                paragraphs: [
+                    "Vous pouvez cesser d'utiliser l'Application à tout moment.",
+                    "La désinstallation de l'Application ne supprime pas automatiquement votre compte ; utilisez la fonction de suppression prévue dans les réglages de l'app."
+                ]
+            ),
+            TermsSection(
+                title: "19. Limitation de responsabilité",
+                paragraphs: [
+                    "Dans les limites autorisées par la loi, Hourglass 4 ne pourra pas être tenue responsable des dommages indirects, immatériels ou consécutifs liés à l'usage de l'Application.",
+                    "Vous utilisez l'Application sous votre responsabilité, notamment pour les choix d'objectifs personnels, physiques ou organisationnels."
+                ]
+            ),
+            TermsSection(
+                title: "20. Données personnelles",
+                paragraphs: [
+                    "Le traitement des données personnelles est encadré par la Politique de confidentialité de l'Application.",
+                    "Cette politique précise les catégories de données, les finalités de traitement, les durées de conservation et vos droits."
+                ]
+            ),
+            TermsSection(
+                title: "21. Modifications des CGU",
+                paragraphs: [
+                    "Nous pouvons modifier les présentes CGU pour refléter une évolution du service, des obligations légales ou des mesures de sécurité.",
+                    "En cas de modification substantielle, une information sera affichée dans l'Application."
+                ]
+            ),
+            TermsSection(
+                title: "22. Droit applicable et juridiction",
+                paragraphs: [
+                    "Sauf disposition impérative contraire, les présentes CGU sont soumises au droit français.",
+                    "En cas de litige, et après tentative de résolution amiable, compétence est attribuée aux juridictions du ressort de [ville], sous réserve des règles protectrices applicables aux consommateurs."
+                ]
+            ),
+            TermsSection(
+                title: "23. Contact",
+                paragraphs: [
+                    "Pour toute question relative aux présentes CGU : [email support/juridique].",
+                    "Adresse postale : [adresse postale complète].",
+                    "Nous vous recommandons de conserver une copie des CGU à jour."
+                ]
+            )
+        ]
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.top, 4)
+    }
+
+    private func sectionText(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private struct TermsSection {
+        let title: String
+        let paragraphs: [String]
+        var bullets: [String] = []
+    }
+}
+
+struct SettingsPrivacyView: View {
+    @Environment(\.dismiss) private var dismiss
+    private let lastUpdate = "3 février 2026"
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Politique de confidentialité")
+                        .font(.title3.weight(.bold))
+                    Text("Dernière mise à jour : \(lastUpdate)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
+                        sectionTitle(section.title)
+                        ForEach(Array(section.paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                            sectionText(paragraph)
+                        }
+                        if !section.bullets.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(Array(section.bullets.enumerated()), id: \.offset) { _, bullet in
+                                    Text("• \(bullet)")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(.top, 2)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Confidentialité")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var sections: [PrivacySection] {
+        [
+            PrivacySection(
+                title: "1. Qui est responsable du traitement ?",
+                paragraphs: [
+                    "Le responsable du traitement des données de l'application Hourglass 4 est [Nom société / Nom prénom], [forme juridique], [adresse complète].",
+                    "Contact support : [email support]. Contact données personnelles : [email juridique]."
+                ]
+            ),
+            PrivacySection(
+                title: "2. Données que nous collectons",
+                paragraphs: [
+                    "Nous collectons les données que vous fournissez directement dans l'app et certaines données techniques nécessaires au fonctionnement."
+                ],
+                bullets: [
+                    "Compte : identifiant, pseudo, photo de profil (si fournie).",
+                    "Objectifs et progression : objectifs créés, validations, grains, interactions.",
+                    "Social : complices, commentaires, réactions, partages.",
+                    "Support : messages envoyés au support.",
+                    "Technique : type d'appareil, version iOS, logs d'erreurs, identifiants techniques."
+                ]
+            ),
+            PrivacySection(
+                title: "3. Permissions de l'app",
+                paragraphs: [
+                    "Certaines fonctionnalités nécessitent votre autorisation explicite."
+                ],
+                bullets: [
+                    "Notifications : rappels objectifs et activité du fil.",
+                    "Photos/caméra : publication de contenus (si activé).",
+                    "Contacts : suggestion de complices (si activé)."
+                ]
+            ),
+            PrivacySection(
+                title: "4. Pourquoi nous utilisons vos données",
+                paragraphs: [
+                    "Nous traitons vos données pour fournir le service, sécuriser les comptes, améliorer l'app et respecter la loi."
+                ],
+                bullets: [
+                    "Créer et gérer votre compte.",
+                    "Afficher vos objectifs, votre progression et vos interactions.",
+                    "Envoyer des notifications si vous les avez acceptées.",
+                    "Prévenir les abus, fraudes et contenus interdits.",
+                    "Mesurer la performance technique de l'app."
+                ]
+            ),
+            PrivacySection(
+                title: "5. Base légale des traitements",
+                paragraphs: [
+                    "Selon les cas, les traitements reposent sur l'exécution du service, votre consentement, notre intérêt légitime ou nos obligations légales."
+                ]
+            ),
+            PrivacySection(
+                title: "6. Partage des données",
+                paragraphs: [
+                    "Nous ne vendons pas vos données personnelles.",
+                    "Vos données peuvent être partagées uniquement avec des prestataires nécessaires au fonctionnement du service ou lorsque la loi l'impose."
+                ],
+                bullets: [
+                    "Hébergement et base de données.",
+                    "Services de notifications push.",
+                    "Outils de sécurité et de monitoring.",
+                    "Autorités compétentes en cas d'obligation légale."
+                ]
+            ),
+            PrivacySection(
+                title: "7. Durée de conservation",
+                paragraphs: [
+                    "Nous conservons les données pendant la durée nécessaire au service et aux obligations légales, puis nous les supprimons ou les anonymisons."
+                ]
+            ),
+            PrivacySection(
+                title: "8. Vos droits",
+                paragraphs: [
+                    "Conformément à la réglementation applicable (RGPD et lois locales), vous pouvez exercer vos droits."
+                ],
+                bullets: [
+                    "Accès à vos données.",
+                    "Rectification des données inexactes.",
+                    "Suppression de votre compte et de vos données, sous réserve d'obligations légales.",
+                    "Opposition ou limitation de certains traitements.",
+                    "Retrait du consentement (ex: notifications).",
+                    "Portabilité, lorsque applicable."
+                ]
+            ),
+            PrivacySection(
+                title: "9. Sécurité",
+                paragraphs: [
+                    "Nous appliquons des mesures techniques et organisationnelles raisonnables pour protéger vos données contre l'accès non autorisé, la perte ou l'altération."
+                ]
+            ),
+            PrivacySection(
+                title: "10. Mineurs",
+                paragraphs: [
+                    "L'application n'est pas destinée aux enfants de moins de 13 ans. Si nous apprenons qu'un tel compte a été créé, il pourra être supprimé."
+                ]
+            ),
+            PrivacySection(
+                title: "11. Transferts internationaux",
+                paragraphs: [
+                    "Si certains prestataires traitent des données hors de votre pays, nous mettons en place des garanties adaptées (par exemple clauses contractuelles types lorsque nécessaire)."
+                ]
+            ),
+            PrivacySection(
+                title: "12. Modifications de cette politique",
+                paragraphs: [
+                    "Cette politique peut évoluer. En cas de modification importante, une information sera affichée dans l'application."
+                ]
+            ),
+            PrivacySection(
+                title: "13. Contact et réclamation",
+                paragraphs: [
+                    "Pour toute demande liée à vos données : [email juridique].",
+                    "Adresse postale : [adresse complète].",
+                    "Si vous estimez que vos droits ne sont pas respectés, vous pouvez saisir l'autorité de contrôle compétente (ex : CNIL en France)."
+                ]
+            )
+        ]
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.top, 4)
+    }
+
+    private func sectionText(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private struct PrivacySection {
+        let title: String
+        let paragraphs: [String]
+        var bullets: [String] = []
     }
 }
 
@@ -1476,6 +2005,7 @@ struct EditProfileView: View {
     @State private var isPublic = true
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var profileImageURL: String? = nil
     @State private var usernameAvailable: Bool? = nil
     @State private var isCheckingUsername = false
     @State private var originalUsernameLower = ""
@@ -1552,13 +2082,39 @@ struct EditProfileView: View {
     }
 
     private var profileHeader: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 42, weight: .light))
-                .foregroundStyle(.orange)
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.orange.opacity(0.18),
+                                Color.orange.opacity(0.04)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 64, height: 64)
+
+                ProfileImageView(
+                    imageURL: profileImageURL,
+                    username: username.isEmpty ? "user" : username,
+                    size: 56,
+                    gradientColors: [.orange, .orange.opacity(0.6)]
+                )
+                .overlay {
+                    Circle()
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                }
+            }
 
             Text("Informations personnelles")
-                .font(.custom("AvenirNext-DemiBold", size: 18))
+                .font(.system(size: 18, weight: .semibold))
+
+            Text("Ton profil, ta trace.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -1566,6 +2122,11 @@ struct EditProfileView: View {
 
     private var personalInfoCard: some View {
         VStack(spacing: 12) {
+            Text("Identité")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             HStack(spacing: 10) {
                 Image(systemName: "person")
                     .foregroundStyle(.orange)
@@ -1573,6 +2134,7 @@ struct EditProfileView: View {
                     .textContentType(.name)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled(true)
+                    .font(.subheadline)
             }
             .padding(14)
             .background(fieldBackground)
@@ -1588,6 +2150,7 @@ struct EditProfileView: View {
                             .onChange(of: username) { _, _ in
                                 checkUsernameAvailability()
                             }
+                            .font(.subheadline)
                     }
                     .padding(14)
                     .padding(.trailing, 40)
@@ -1626,6 +2189,7 @@ struct EditProfileView: View {
                     .keyboardType(.emailAddress)
                     .disabled(true)
                     .foregroundStyle(.secondary)
+                    .font(.subheadline)
             }
             .padding(14)
             .background(fieldBackground)
@@ -1637,7 +2201,7 @@ struct EditProfileView: View {
     private var additionalInfoCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Informations supplémentaires")
-                .font(.caption)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             Picker("Genre", selection: $selectedGender) {
@@ -1670,11 +2234,14 @@ struct EditProfileView: View {
     private var privacyCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Confidentialité")
-                .font(.caption)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             Toggle("Profil public", isOn: $isPublic)
                 .tint(.orange)
+            Text("Contrôle la visibilité de ton profil pour les autres.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             if isAdminEmail(email) {
                 Button {
@@ -1699,7 +2266,20 @@ struct EditProfileView: View {
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 18)
-            .fill(Color(uiColor: .systemBackground))
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemBackground),
+                        Color.orange.opacity(0.04)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.orange.opacity(0.06), lineWidth: 1)
+            }
             .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 8)
     }
 
@@ -1708,7 +2288,7 @@ struct EditProfileView: View {
             .fill(Color(uiColor: .secondarySystemBackground))
             .overlay {
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                    .stroke(Color.orange.opacity(0.08), lineWidth: 1)
             }
     }
 
@@ -1728,6 +2308,7 @@ struct EditProfileView: View {
                     selectedGender = data?.gender ?? .notSpecified
                     birthDate = data?.birthDate ?? Date()
                     isPublic = data?.isPublic ?? true
+                    profileImageURL = data?.profileImageURL
                     originalUsername = data?.username ?? ""
                     originalUsernameLower = originalUsername.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
                     usernameLastChangedAt = data?.usernameLastChangedAt
@@ -2356,27 +2937,29 @@ struct ShareProfileView: View {
     let shareText: String
     @Environment(\.dismiss) private var dismiss
     @State private var showCopyConfirmation = false
+    @State private var userData: UserData? = nil
+    @State private var isLoadingProfile = true
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Header avec design orange
                 VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 80, height: 80)
-                            .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
-
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.white)
+                    if isLoadingProfile {
+                        ZStack {
+                            Circle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 80, height: 80)
+                            ProgressView()
+                        }
+                    } else {
+                        ProfileImageView(
+                            imageURL: userData?.profileImageURL,
+                            username: userData?.username ?? "U",
+                            size: 80,
+                            gradientColors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)]
+                        )
+                        .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
                     }
 
                     Text("Partager mon profil")
@@ -2392,6 +2975,32 @@ struct ShareProfileView: View {
 
                 // Options de partage
                 VStack(spacing: 16) {
+                    // Envoyer par SMS
+                    Button {
+                        sendViaSMS()
+                    } label: {
+                        ShareOptionRow(
+                            icon: "message.fill",
+                            color: .green,
+                            title: "Envoyer par SMS",
+                            subtitle: "Messages"
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    // Envoyer par WhatsApp
+                    Button {
+                        sendViaWhatsApp()
+                    } label: {
+                        ShareOptionRow(
+                            icon: "phone.bubble.fill",
+                            color: Color(red: 0.15, green: 0.78, blue: 0.22),
+                            title: "Envoyer par WhatsApp",
+                            subtitle: "WhatsApp"
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     // Copier le texte
                     Button {
                         UIPasteboard.general.string = shareText
@@ -2443,36 +3052,12 @@ struct ShareProfileView: View {
 
                     // Plus d'options (ouvre le ShareSheet natif)
                     ShareLink(item: shareText) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.orange.opacity(0.15))
-                                    .frame(width: 56, height: 56)
-
-                                Image(systemName: "square.and.arrow.up.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(.orange)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Plus d'options")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text("Messages, Mail, WhatsApp, etc.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .background {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(uiColor: .secondarySystemBackground))
-                        }
+                        ShareOptionRow(
+                            icon: "square.and.arrow.up.fill",
+                            color: .blue,
+                            title: "Plus d'options",
+                            subtitle: "Mail, Messenger, etc."
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -2493,6 +3078,95 @@ struct ShareProfileView: View {
                     }
                 }
             }
+            .onAppear {
+                loadUserProfile()
+            }
+        }
+    }
+
+    private func loadUserProfile() {
+        guard let currentUser = Auth.auth().currentUser else {
+            isLoadingProfile = false
+            return
+        }
+
+        Task {
+            do {
+                let data = try await UserManager.shared.getUserProfile(uid: currentUser.uid)
+                await MainActor.run {
+                    userData = data
+                    isLoadingProfile = false
+                }
+            } catch {
+                print("Erreur lors du chargement du profil: \(error.localizedDescription)")
+                await MainActor.run {
+                    isLoadingProfile = false
+                }
+            }
+        }
+    }
+
+    private func sendViaSMS() {
+        guard let encodedText = shareText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let smsURL = URL(string: "sms:&body=\(encodedText)") else {
+            return
+        }
+
+        if UIApplication.shared.canOpenURL(smsURL) {
+            UIApplication.shared.open(smsURL)
+        }
+    }
+
+    private func sendViaWhatsApp() {
+        guard let encodedText = shareText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let whatsappURL = URL(string: "whatsapp://send?text=\(encodedText)") else {
+            return
+        }
+
+        if UIApplication.shared.canOpenURL(whatsappURL) {
+            UIApplication.shared.open(whatsappURL)
+        }
+    }
+}
+
+// MARK: - Share Option Row
+
+struct ShareOptionRow: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 56, height: 56)
+
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(color)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(uiColor: .secondarySystemBackground))
         }
     }
 }
@@ -2523,4 +3197,5 @@ struct InfoBubbleTriangleUp: Shape {
 
 #Preview {
     ProfileView(viewModel: nil)
+        .environmentObject(TutorialManager.shared)
 }

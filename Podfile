@@ -11,6 +11,7 @@ target 'Hourglass 4' do
   pod 'FirebaseAuth'
   pod 'FirebaseFirestore'
   pod 'FirebaseFunctions'
+  pod 'FirebaseMessaging'
   pod 'FirebaseStorage'
 end
 

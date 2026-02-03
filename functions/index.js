@@ -5,7 +5,7 @@
  */
 
 const {onSchedule} = require("firebase-functions/v2/scheduler");
-const {onDocumentDeleted} = require("firebase-functions/v2/firestore");
+const {onDocumentDeleted, onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {onCall, onRequest, HttpsError} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const {getStorage} = require("firebase-admin/storage");
@@ -285,6 +285,62 @@ exports.cleanupExpiredVictories = onSchedule({
     throw error;
   }
 });
+
+exports.sendNotificationPush = onDocumentCreated(
+  {document: "notifications/{notificationId}", region: REGION},
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const toUserId = data.toUserId;
+    const fromUserId = data.fromUserId;
+    const type = data.type || "mention";
+
+    if (!toUserId || toUserId === fromUserId) return;
+
+    const userSnap = await admin.firestore().collection("users").doc(toUserId).get();
+    const tokens = userSnap.get("fcmTokens") || [];
+
+    if (!Array.isArray(tokens) || tokens.length === 0) return;
+
+    const fromName = data.fromDisplayName || data.fromUsername || "Quelqu'un";
+    const title = "Hourglass";
+    let body = `${fromName} t'a mentionné`;
+
+    if (type === "comment") {
+      body = `${fromName} a commenté ta victoire`;
+    } else if (type === "boost") {
+      body = `${fromName} t'a donné un grain`;
+    }
+
+    const message = {
+      tokens,
+      notification: {title, body},
+      data: {
+        type: String(type),
+        victoryId: String(data.victoryId || ""),
+      },
+    };
+
+    const response = await admin.messaging().sendEachForMulticast(message);
+    const invalidTokens = [];
+    response.responses.forEach((result, index) => {
+      if (result.error) {
+        const code = result.error.code || "";
+        if (code.includes("registration-token-not-registered") ||
+            code.includes("invalid-registration-token")) {
+          invalidTokens.push(tokens[index]);
+        }
+      }
+    });
+
+    if (invalidTokens.length > 0) {
+      await admin.firestore().collection("users").doc(toUserId).updateData({
+        fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+      });
+    }
+  }
+);
 
 /**
  * Fonction déclenchée automatiquement quand une victoire est supprimée

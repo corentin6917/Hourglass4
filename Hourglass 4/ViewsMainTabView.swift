@@ -12,6 +12,7 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 1 // Commence sur "Sablier"
     let viewModel: HourglassViewModel?
+    @EnvironmentObject private var tutorialManager: TutorialManager
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -37,19 +38,41 @@ struct MainTabView: View {
                     Image(systemName: selectedTab == 2 ? "target" : "target")
                     Text("Objectifs")
                 }
-                .tag(2)
+            .tag(2)
         }
         .tint(.orange)
         .onReceive(NotificationCenter.default.publisher(for: .switchToObjectivesTab)) { _ in
             selectedTab = 2
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchToVictoryFeed)) { _ in
+            selectedTab = 0
+        }
+        .onChange(of: tutorialManager.currentTab) { _, newValue in
+            selectedTab = newValue
+        }
+        .onChange(of: selectedTab) { _, newValue in
+            guard tutorialManager.isActive, newValue != tutorialManager.currentTab else { return }
+            selectedTab = tutorialManager.currentTab
+        }
+        .overlay(alignment: .bottomLeading) {
+            // Anchor approximatif du bouton "Fil" (tab bar iOS) pour le tutoriel.
+            Color.clear
+                .frame(width: 46, height: 40)
+                .padding(.leading, 42)
+                .padding(.bottom, 6)
+                .tutorialAnchor("feed.tab")
+                .allowsHitTesting(false)
         }
     }
 }
 
 extension Notification.Name {
     static let switchToObjectivesTab = Notification.Name("switchToObjectivesTab")
+    static let switchToVictoryFeed = Notification.Name("switchToVictoryFeed")
+    static let openVictoryFromNotification = Notification.Name("openVictoryFromNotification")
 }
 
 #Preview {
     MainTabView(viewModel: nil)
+        .environmentObject(TutorialManager.shared)
 }

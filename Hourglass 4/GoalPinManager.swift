@@ -39,38 +39,28 @@ class GoalPinManager {
             ])
         }
 
-        // Store goal data in a subcollection for easy retrieval
-        try await db.collection("users").document(userId)
-            .collection("pinnedGoals").document(goalKey)
-            .setData(goalData)
-
-        // Add to pinnedGoalKeys array
-        try await userRef.updateData([
-            "pinnedGoalKeys": FieldValue.arrayUnion([goalKey])
-        ])
+        // Keep everything on /users/{uid} to stay compatible with current Firestore rules.
+        try await userRef.setData([
+            "pinnedGoalKeys": FieldValue.arrayUnion([goalKey]),
+            "pinnedGoalsMeta.\(goalKey)": goalData,
+        ], merge: true)
     }
 
     func unpinGoal(_ goalKey: String, userId: String) async throws {
         let userRef = db.collection("users").document(userId)
 
-        // Remove from pinnedGoalKeys array
-        try await userRef.updateData([
-            "pinnedGoalKeys": FieldValue.arrayRemove([goalKey])
-        ])
-
-        // Delete goal data from subcollection
-        try await db.collection("users").document(userId)
-            .collection("pinnedGoals").document(goalKey)
-            .delete()
+        // Remove key + metadata from /users/{uid}
+        try await userRef.setData([
+            "pinnedGoalKeys": FieldValue.arrayRemove([goalKey]),
+            "pinnedGoalsMeta.\(goalKey)": FieldValue.delete(),
+        ], merge: true)
     }
 
     // MARK: - Load Pinned Goals
 
     func loadPinnedGoals(userId: String) async throws -> [[String: Any]] {
-        let snapshot = try await db.collection("users").document(userId)
-            .collection("pinnedGoals")
-            .getDocuments()
-
-        return snapshot.documents.map { $0.data() }
+        let userDoc = try await db.collection("users").document(userId).getDocument()
+        let metadata = userDoc.data()?["pinnedGoalsMeta"] as? [String: Any] ?? [:]
+        return metadata.values.compactMap { $0 as? [String: Any] }
     }
 }

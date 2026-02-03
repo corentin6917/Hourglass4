@@ -26,7 +26,7 @@ struct ObjectivesViewFirebase: View {
 
     var potentialRemaining: Double {
         // Le potentiel restant = budget quotidien - grains gagnés
-        dailyBudget - potentialAllocated
+        max(dailyBudget - potentialAllocated, 0)
     }
 
     var completedGoals: [FirebaseGoal] {
@@ -60,32 +60,14 @@ struct ObjectivesViewFirebase: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 20) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Objectifs")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-
-                                Text(formattedDate)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            CurrentUserAvatarButton(size: 44) {
+                        PageHeader(
+                            title: "Objectifs",
+                            dateText: "",
+                            onAvatarTap: {
                                 showProfile = true
                             }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 16)
+                        )
+                        .tutorialAnchor("objectives.header")
 
                         ObjectiveBudgetCard(
                             allocated: potentialAllocated,
@@ -95,6 +77,7 @@ struct ObjectivesViewFirebase: View {
                             showBudgetInfo = true
                         }
                         .padding(.horizontal, 24)
+                        .tutorialAnchor("objectives.budget")
 
                         if pendingGoals.isEmpty && completedGoals.isEmpty {
                             VStack(spacing: 12) {
@@ -137,22 +120,43 @@ struct ObjectivesViewFirebase: View {
                         } else {
                             VStack(alignment: .leading, spacing: 16) {
                                 if !pendingGoals.isEmpty {
-                                    Text("En cours")
-                                        .font(.headline)
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        HStack(spacing: 10) {
+                                            Text("En cours")
+                                                .font(.system(size: 18, weight: .semibold))
+                                                .foregroundStyle(.primary)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(Color.orange.opacity(0.08))
+                                                )
+
+                                            Spacer()
+
+                                            Text("\(pendingGoals.count) objectifs")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.orange)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(Color.orange.opacity(0.12))
+                                                )
+                                        }
                                         .padding(.horizontal, 24)
 
-                                    ForEach(pendingGoals) { goal in
-                                        FirebaseGoalCard(goal: goal)
-                                            .padding(.horizontal, 24)
-                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                                Button(role: .destructive) {
+                                        VStack(spacing: 12) {
+                                            ForEach(pendingGoals) { goal in
+                                                PendingGoalMiniCard(goal: goal) {
                                                     Task {
                                                         try? await goalManager.deleteGoal(goal)
                                                     }
-                                                } label: {
-                                                    Label("Supprimer", systemImage: "trash")
                                                 }
                                             }
+                                        }
+                                        .padding(.horizontal, 24)
                                     }
                                 }
 
@@ -212,7 +216,11 @@ struct ObjectivesViewFirebase: View {
                                 .shadow(color: .orange.opacity(0.3), radius: 12, x: 0, y: 6)
                         }
                     }
+                    .buttonStyle(.plain)
+                    .shadow(color: .orange.opacity(0.18), radius: 14, x: 0, y: 8)
+                    .glowPulseEffect()
                     .padding(.bottom, 24)
+                    .tutorialAnchor("objectives.add")
                 }
             }
             .navigationBarHidden(true)
@@ -233,6 +241,160 @@ struct ObjectivesViewFirebase: View {
                 await goalManager.loadTodayGoals()
                 dailyBudget = await goalManager.getDailyGrainsBudget()
             }
+        }
+    }
+}
+
+// MARK: - Subtle pulse effect for cards
+
+struct PulseEffect: ViewModifier {
+    @State private var animate = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(animate ? 1.02 : 1.0)
+            .shadow(color: .orange.opacity(animate ? 0.25 : 0.12), radius: animate ? 16 : 10, x: 0, y: 8)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                    animate = true
+                }
+            }
+    }
+}
+
+extension View {
+    func pulseEffect() -> some View {
+        modifier(PulseEffect())
+    }
+}
+
+// MARK: - Homogeneous glow pulse for CTA
+
+struct GlowPulseEffect: ViewModifier {
+    @State private var animate = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(animate ? 0.18 : 0.06),
+                                Color.white.opacity(animate ? 0.12 : 0.04)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .blendMode(.screen)
+                    .allowsHitTesting(false)
+            }
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                    animate = true
+                }
+            }
+    }
+}
+
+extension View {
+    func glowPulseEffect() -> some View {
+        modifier(GlowPulseEffect())
+    }
+}
+
+// MARK: - Pending Goal Mini Card (Objectifs)
+
+struct PendingGoalMiniCard: View {
+    let goal: FirebaseGoal
+    let onDelete: () -> Void
+
+    @State private var showValidation = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 6) {
+                Text(goal.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+
+                if let description = goal.goalDescription, !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+            }
+
+            VStack(spacing: 4) {
+                Text("\(Int(ceil(goal.grainValue)))")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.orange)
+
+                Text("grains")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                showValidation = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "camera.fill")
+                        .font(.caption)
+
+                    Text("Valider")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background {
+                    Capsule()
+                        .fill(Color.orange.opacity(0.12))
+                        .overlay {
+                            Capsule()
+                                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                        }
+                }
+            }
+        }
+        .padding(.vertical, 16)
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity, minHeight: 130)
+        .background {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.78),
+                            Color.orange.opacity(0.16)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                }
+        }
+        .pulseEffect()
+        .contextMenu {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Supprimer", systemImage: "trash")
+            }
+        }
+        .sheet(isPresented: $showValidation) {
+            FirebaseValidateGoalView(goal: goal)
         }
     }
 }
@@ -347,7 +509,7 @@ struct ObjectiveBudgetCard: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(Int(totalBudget))")
+                Text("\(totalCount)")
                     .font(.system(size: 40, weight: .bold))
                     .foregroundStyle(.orange)
 

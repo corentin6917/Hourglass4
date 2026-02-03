@@ -145,17 +145,17 @@ private extension HourglassView {
     }
 
     var ratioCardSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .center, spacing: 20) {
             HStack {
                 HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.right")
+                    Image(systemName: "hourglass")
                         .font(.title3)
 
-                    Text("RATIO DE VIE")
+                    Text("TON SABLIER DU JOUR")
                         .font(.headline)
                         .fontWeight(.bold)
                 }
-                .foregroundStyle(ratioColor)
+                .foregroundStyle(.orange)
 
                 Spacer()
 
@@ -168,22 +168,33 @@ private extension HourglassView {
                 }
             }
 
-            Text(String(format: "%.0f%%", lifeRatio * 100))
-                .font(.system(size: 80, weight: .bold))
-                .foregroundStyle(ratioColor)
-                .frame(maxWidth: .infinity)
+            // SABLIER ANIMÉ ⭐
+            AnimatedHourglassView(
+                progress: lifeRatio,
+                totalGrains: 10,
+                earnedGrains: Int(todayProgress)
+            )
+            .frame(height: 320)
+            .padding(.vertical, 20)
 
+            // Barre de progression en dessous
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(Color.gray.opacity(0.2))
 
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(ratioColor)
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange, Color(red: 1.0, green: 0.85, blue: 0.4)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(width: geometry.size.width * lifeRatio)
                 }
             }
-            .frame(height: 20)
+            .frame(height: 12)
 
             Text(ratioMessage)
                 .font(.headline)
@@ -193,7 +204,11 @@ private extension HourglassView {
         .padding(24)
         .background {
             RoundedRectangle(cornerRadius: 20)
-                .fill(ratioColor.opacity(0.1))
+                .fill(Color.orange.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                )
         }
         .padding(.horizontal)
         .padding(.bottom, 24)

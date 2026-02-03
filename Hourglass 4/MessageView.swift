@@ -28,7 +28,9 @@ struct MessageView: View {
                 // Zone de destinataire
                 recipientSection
 
-                Divider()
+                Rectangle()
+                    .fill(Theme.Colors.divider)
+                    .frame(height: 1)
 
                 // Zone de message
                 messageSection
@@ -51,6 +53,7 @@ struct MessageView: View {
                         }
                     }
                     .disabled(!canSend || isSending)
+                    .foregroundStyle((canSend && !isSending) ? Theme.Colors.accent : Theme.Colors.textTertiary)
                 }
             }
             .alert("Message envoyé !", isPresented: $showSuccess) {
@@ -60,77 +63,75 @@ struct MessageView: View {
             } message: {
                 Text("Votre message a été envoyé à \(displayName) avec succès !")
             }
+            .background(Theme.Colors.background)
         }
     }
 
     private var recipientSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Theme.Spacing.small) {
             Text("À :")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.bodySmall)
+                .foregroundStyle(Theme.Colors.textSecondary)
 
             // Avatar miniature
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [.purple, .purple.opacity(0.6)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 32, height: 32)
-                .overlay {
-                    Text(friend.username.prefix(1).uppercased())
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                }
+            ProfileImageView(
+                imageURL: friend.profileImageURL,
+                username: friend.username,
+                size: 32,
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
+            )
 
             Text(displayName)
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .font(Theme.Typography.labelLarge)
+                .foregroundStyle(Theme.Colors.textPrimary)
 
             Spacer()
         }
-        .padding()
-        .background(Color(uiColor: .systemGroupedBackground))
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.surface)
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundStyle(Theme.Colors.divider),
+            alignment: .bottom
+        )
     }
 
     private var messageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
             Text("Message")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-                .padding(.top)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .padding(.horizontal, Theme.Spacing.large)
+                .padding(.top, Theme.Spacing.medium)
 
             TextEditor(text: $messageText)
                 .frame(minHeight: 150)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(uiColor: .systemBackground))
-                .cornerRadius(12)
+                .padding(.horizontal, Theme.Spacing.medium)
+                .padding(.vertical, Theme.Spacing.small)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.CornerRadius.medium)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.medium)
+                        .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
                 )
-                .padding(.horizontal)
+                .padding(.horizontal, Theme.Spacing.large)
 
             // Suggestions de messages rapides
             quickMessagesSection
         }
-        .padding(.vertical)
+        .padding(.vertical, Theme.Spacing.small)
     }
 
     private var quickMessagesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
             Text("Messages rapides")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .padding(.horizontal, Theme.Spacing.large)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: Theme.Spacing.small) {
                     QuickMessageButton(text: "Bon courage ! 💪") {
                         messageText = "Bon courage ! 💪"
                     }
@@ -147,7 +148,7 @@ struct MessageView: View {
                         messageText = "Je crois en toi ! ✨"
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, Theme.Spacing.large)
             }
         }
     }
@@ -182,14 +183,14 @@ struct QuickMessageButton: View {
     var body: some View {
         Button(action: action) {
             Text(text)
-                .font(.subheadline)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .font(Theme.Typography.bodySmall)
+                .padding(.horizontal, Theme.Spacing.medium)
+                .padding(.vertical, Theme.Spacing.small)
                 .background {
                     Capsule()
-                        .fill(Color.purple.opacity(0.1))
+                        .fill(Theme.Colors.accentSubtle)
                 }
-                .foregroundStyle(.purple)
+                .foregroundStyle(Theme.Colors.accent)
         }
     }
 }

@@ -49,7 +49,7 @@ struct SimpleRealisticHourglass: View {
             }
             
             // Brillance animée
-            ShineEffect(offset: $shine)
+            SimpleHourglassShineEffect(offset: $shine)
         }
         .frame(width: 200, height: 420)
         .onAppear {
@@ -234,7 +234,7 @@ private struct Neck: View {
 
 // MARK: - Shine Effect
 
-private struct ShineEffect: View {
+private struct SimpleHourglassShineEffect: View {
     @Binding var offset: CGFloat
     
     var body: some View {

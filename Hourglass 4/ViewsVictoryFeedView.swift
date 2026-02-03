@@ -7,10 +7,12 @@
 
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 enum VictoryFilter {
     case friends
     case thisWeek
+    case mine
 }
 
 struct VictoryFeedView: View {
@@ -25,9 +27,24 @@ struct VictoryFeedView: View {
     @State private var showFeedInfo = false
     @State private var showGrainInfo = false
     @State private var dailyGrainSpent: Double = 0.0
+    @State private var unreadNotificationsCount = 0
+    @State private var notificationsListener: ListenerRegistration?
+    @State private var showNotifications = false
 
     private var groupedVictories: [UserVictoryGroup] {
-        let grouped = Dictionary(grouping: victoryManager.victories) { $0.userId }
+        let calendar = AppTimeZone.calendar
+        let visibleVictories: [Victory]
+
+        switch selectedFilter {
+        case .friends, .mine:
+            visibleVictories = victoryManager.victories
+        case .thisWeek:
+            let weekInterval = calendar.dateInterval(of: .weekOfYear, for: Date())
+            let weekStart = weekInterval?.start ?? calendar.startOfDay(for: Date())
+            visibleVictories = victoryManager.victories.filter { $0.createdAt >= weekStart }
+        }
+
+        let grouped = Dictionary(grouping: visibleVictories) { $0.userId }
 
         let groups = grouped.map { userId, victories in
             let sorted = victories.sorted { $0.createdAt < $1.createdAt }
@@ -50,6 +67,10 @@ struct VictoryFeedView: View {
 
     private var canViewFeed: Bool {
         goalManager.todayGoals.contains { $0.status == .completed }
+    }
+
+    private var canViewCurrentFeed: Bool {
+        selectedFilter == .mine ? true : canViewFeed
     }
 
     private var grainsEarnedToday: Double {
@@ -86,21 +107,55 @@ struct VictoryFeedView: View {
                             }
                         } label: {
                             Text("Fil des Victoires")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.orange.opacity(0.12))
+                                        .overlay {
+                                            Capsule()
+                                                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                                        }
                                 )
                         }
                         .buttonStyle(.plain)
 
                         Spacer()
+
+                        Button {
+                            showNotifications = true
+                        } label: {
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.orange)
+                                    .padding(8)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.orange.opacity(0.12))
+                                    )
+
+                                if unreadNotificationsCount > 0 {
+                                    Text("\(unreadNotificationsCount)")
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white)
+                                        .padding(4)
+                                        .background {
+                                            Circle()
+                                                .fill(.red)
+                                        }
+                                        .offset(x: 6, y: -6)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
+                    .tutorialAnchor("feed.header")
 
                     if showFeedInfo {
                         VStack(spacing: 0) {
@@ -110,20 +165,8 @@ struct VictoryFeedView: View {
                                 .shadow(color: .orange.opacity(0.15), radius: 4, x: 0, y: -2)
 
                             VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "sparkles")
-                                        .font(.subheadline)
-                                        .foregroundStyle(
-                                            LinearGradient(
-                                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-
-                                    Text("Photos éphémères")
-                                        .font(.system(size: 14, weight: .semibold))
-                                }
+                                Text("Photos éphémères")
+                                    .font(.system(size: 14, weight: .semibold))
 
                                 Text("Le feed se rafraîchit chaque soir à 21h avec les photos de la journée. Validation possible jusqu'à 20h59.")
                                     .font(.system(size: 12))
@@ -147,10 +190,10 @@ struct VictoryFeedView: View {
                         }
                     }
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         FilterButton(
                             icon: "person.2.fill",
-                            title: "Mes Complices",
+                            title: "Complices",
                             isSelected: selectedFilter == .friends
                         ) {
                             selectedFilter = .friends
@@ -158,14 +201,24 @@ struct VictoryFeedView: View {
 
                         FilterButton(
                             icon: "calendar",
-                            title: "Cette semaine",
+                            title: "Semaine",
                             isSelected: selectedFilter == .thisWeek
                         ) {
                             selectedFilter = .thisWeek
                         }
+
+                        FilterButton(
+                            icon: "person.crop.circle",
+                            title: "Mes victoires",
+                            isSelected: selectedFilter == .mine
+                        ) {
+                            selectedFilter = .mine
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
+                    .tutorialAnchor("feed.filters")
                 }
 
                 Divider()
@@ -185,7 +238,7 @@ struct VictoryFeedView: View {
                                         group: group,
                                         userManager: userManager,
                                         availableGrainsToday: availableGrainsToday,
-                                        canViewFeed: canViewFeed,
+                                        canViewFeed: canViewCurrentFeed,
                                         onTapComments: { victory in
                                             selectedVictory = victory
                                             showComments = true
@@ -210,15 +263,33 @@ struct VictoryFeedView: View {
                 .refreshable {
                     await goalManager.loadTodayGoals()
                     await loadDailyGrainSpent()
-                    await loadFeed()
+                    await loadSelectedFeed()
                 }
                 .task {
                     await goalManager.loadTodayGoals()
                     await loadDailyGrainSpent()
-                    await loadFeed()
+                    await loadSelectedFeed()
+                }
+                .onChange(of: selectedFilter) { _, _ in
+                    Task {
+                        await loadSelectedFeed()
+                    }
+                }
+                .onAppear {
+                    startNotificationsListener()
+                }
+                .onDisappear {
+                    stopNotificationsListener()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .openVictoryFromNotification)) { notification in
+                    guard let victoryId = notification.userInfo?["victoryId"] as? String else { return }
+                    Task { await openVictory(victoryId: victoryId) }
                 }
                 .sheet(item: $selectedVictory) { victory in
                     VictoryDetailView(victory: victory)
+                }
+                .sheet(isPresented: $showNotifications) {
+                    MentionsNotificationsView()
                 }
             }
         }
@@ -226,24 +297,63 @@ struct VictoryFeedView: View {
 
     private var emptyState: some View {
         VStack(spacing: 24) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 80))
-                .foregroundStyle(.orange.opacity(0.3))
+            ZStack {
+                Circle()
+                    .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+                    .frame(width: 84, height: 84)
 
-            Text("Aucune victoire visible")
-                .font(.title2)
-                .fontWeight(.bold)
+                Image(systemName: "hourglass")
+                    .font(.system(size: 46, weight: .regular))
+                    .foregroundStyle(.orange)
+            }
+            .padding(.bottom, 6)
 
-            Text("Les photos apparaissent à 21h et restent visibles 24h.")
-                .font(.body)
-                .foregroundStyle(.secondary)
+            Text(emptyStateTitle)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .multilineTextAlignment(.center)
+
+            Text(emptyStateSubtitle)
+                .font(.footnote)
+                .foregroundStyle(.orange)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
         .padding(.vertical, 60)
     }
 
-    private func loadFeed() async {
+    private var emptyStateTitle: String {
+        switch selectedFilter {
+        case .friends:
+            return "Aucune victoire visible de tes complices"
+        case .thisWeek:
+            return "Aucune victoire marquante cette semaine"
+        case .mine:
+            return "Aucun post en cours"
+        }
+    }
+
+    private var emptyStateSubtitle: String {
+        switch selectedFilter {
+        case .mine:
+            return "Valide un objectif pour publier ton post du jour. Tes posts restent visibles pendant 24h."
+        case .friends:
+            return "Les photos apparaissent à 21h et restent visibles 24h."
+        case .thisWeek:
+            return "Les plus beaux objectifs de la communauté apparaîtront ici."
+        }
+    }
+
+    private func loadSelectedFeed() async {
+        switch selectedFilter {
+        case .friends, .thisWeek:
+            await loadFriendsFeed()
+        case .mine:
+            await loadMyPosts()
+        }
+    }
+
+    private func loadFriendsFeed() async {
         do {
             guard let currentUserId = Auth.auth().currentUser?.uid else {
                 print("❌ DEBUG - Aucun utilisateur connecté")
@@ -284,6 +394,17 @@ struct VictoryFeedView: View {
         }
     }
 
+    private func loadMyPosts() async {
+        do {
+            try await victoryManager.loadMyActiveVictories()
+        } catch {
+            print("❌ Erreur de chargement de mes posts: \(error.localizedDescription)")
+            await MainActor.run {
+                victoryManager.isLoading = false
+            }
+        }
+    }
+
     private func loadDailyGrainSpent() async {
         do {
             dailyGrainSpent = try await victoryManager.fetchDailyGrainSpent()
@@ -292,25 +413,49 @@ struct VictoryFeedView: View {
         }
     }
 
+    private func startNotificationsListener() {
+        stopNotificationsListener()
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        let db = Firestore.firestore()
+        notificationsListener = db.collection("notifications")
+            .whereField("toUserId", isEqualTo: currentUserId)
+            .whereField("isRead", isEqualTo: false)
+            .addSnapshotListener { snapshot, _ in
+                let count = snapshot?.documents.count ?? 0
+                DispatchQueue.main.async {
+                    unreadNotificationsCount = count
+                }
+            }
+    }
+
+    private func stopNotificationsListener() {
+        notificationsListener?.remove()
+        notificationsListener = nil
+    }
+
+    private func openVictory(victoryId: String) async {
+        if let existing = victoryManager.victories.first(where: { $0.victoryId == victoryId }) {
+            await MainActor.run {
+                selectedVictory = existing
+            }
+            return
+        }
+
+        if let fetched = try? await victoryManager.fetchVictory(by: victoryId) {
+            await MainActor.run {
+                selectedVictory = fetched
+            }
+        }
+    }
+
     private var grainBadge: some View {
         VStack(spacing: 6) {
             if showGrainInfo {
-                VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "hourglass.circle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-
-                            Text("Grains disponibles")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
+                    VStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 10) {
+                        Text("Grains disponibles")
+                            .font(.system(size: 13, weight: .semibold))
 
                         Text("Ce sont les grains gagnés aujourd’hui. Ils servent à récompenser tes amis (1 grain max par post). Le budget se remet à zéro à minuit.")
                             .font(.system(size: 12))
@@ -346,23 +491,26 @@ struct VictoryFeedView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "circle.fill")
                         .font(.system(size: 7))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.white)
                     Text("Grains dispo \(Int(availableGrainsToday))")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.orange.opacity(0.07))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange, Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
                 )
             }
             .buttonStyle(.plain)
+            .tutorialAnchor("feed.grains")
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 8)
@@ -796,6 +944,7 @@ struct VictoryPhotoView: View {
 struct VictoryDetailView: View {
     let victory: Victory
 
+    @StateObject private var friendManager = FriendManager.shared
     @State private var comments: [VictoryComment] = []
     @State private var newCommentText = ""
     @State private var isPostingComment = false
@@ -819,6 +968,19 @@ struct VictoryDetailView: View {
     
     private var trimmedSavedComment: String {
         savedComment.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var mentionSuggestions: [UserData] {
+        guard let query = currentMentionQuery(in: newCommentText),
+              !query.isEmpty else {
+            return []
+        }
+        let lowered = query.lowercased()
+        return friendManager.friends
+            .filter { $0.username.lowercased().hasPrefix(lowered) }
+            .sorted { $0.username.lowercased() < $1.username.lowercased() }
+            .prefix(6)
+            .map { $0 }
     }
 
     var body: some View {
@@ -916,19 +1078,63 @@ struct VictoryDetailView: View {
                 Divider()
 
                 // Zone de commentaire
-                HStack(spacing: 12) {
-                    TextField("Ajouter un commentaire...", text: $newCommentText)
-                        .textFieldStyle(.roundedBorder)
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        TextField("Ajouter un commentaire...", text: $newCommentText)
+                            .textFieldStyle(.roundedBorder)
 
-                    Button {
-                        Task {
-                            await postComment()
+                        Button {
+                            Task {
+                                await postComment()
+                            }
+                        } label: {
+                            Image(systemName: "paperplane.fill")
+                                .foregroundStyle(.blue)
                         }
-                    } label: {
-                        Image(systemName: "paperplane.fill")
-                            .foregroundStyle(.blue)
+                        .disabled(newCommentText.isEmpty || isPostingComment)
                     }
-                    .disabled(newCommentText.isEmpty || isPostingComment)
+
+                    if !mentionSuggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(mentionSuggestions) { friend in
+                                Button {
+                                    insertMention(friend.username)
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        ProfileImageView(
+                                            imageURL: friend.profileImageURL,
+                                            username: friend.username,
+                                            size: 28,
+                                            gradientColors: [.orange, .orange.opacity(0.6)]
+                                        )
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(friend.displayName?.isEmpty == false ? friend.displayName! : friend.username)
+                                                .font(.caption)
+                                                .foregroundStyle(.primary)
+                                            Text("@\(friend.username)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color(uiColor: .secondarySystemBackground))
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    if let commentError, !commentError.isEmpty {
+                        Text(commentError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .padding()
             }
@@ -961,6 +1167,7 @@ struct VictoryDetailView: View {
                 }
             }
             .task {
+                await friendManager.loadFriends()
                 await loadComments()
                 await loadPinnedState()
                 savedComment = victory.comment ?? ""
@@ -988,11 +1195,13 @@ struct VictoryDetailView: View {
         isPostingComment = true
 
         do {
-            try await VictoryManager.shared.commentVictory(victory, text: newCommentText)
+            let mentioned = mentionedFriends(in: newCommentText)
+            try await VictoryManager.shared.commentVictory(victory, text: newCommentText, mentionedUsers: mentioned)
             newCommentText = ""
             await loadComments()
         } catch {
             print("Erreur de commentaire: \(error.localizedDescription)")
+            commentError = error.localizedDescription
         }
 
         isPostingComment = false
@@ -1016,6 +1225,50 @@ struct VictoryDetailView: View {
         }
 
         isSavingComment = false
+    }
+
+    private func currentMentionQuery(in text: String) -> String? {
+        guard let atIndex = text.lastIndex(of: "@") else { return nil }
+        if atIndex > text.startIndex {
+            let prev = text.index(before: atIndex)
+            if !text[prev].isWhitespace {
+                return nil
+            }
+        }
+        let start = text.index(after: atIndex)
+        var end = text.endIndex
+        if let spaceIndex = text[start...].firstIndex(where: { $0.isWhitespace }) {
+            end = spaceIndex
+        }
+        return String(text[start..<end])
+    }
+
+    private func insertMention(_ username: String) {
+        guard let atIndex = newCommentText.lastIndex(of: "@") else {
+            newCommentText += "@\(username) "
+            return
+        }
+        let start = newCommentText.index(after: atIndex)
+        var end = newCommentText.endIndex
+        if let spaceIndex = newCommentText[start...].firstIndex(where: { $0.isWhitespace }) {
+            end = spaceIndex
+        }
+        newCommentText.replaceSubrange(start..<end, with: username + " ")
+    }
+
+    private func mentionedFriends(in text: String) -> [UserData] {
+        let tokens = text.split { $0.isWhitespace || $0 == "\n" }
+        let usernames = tokens.compactMap { token -> String? in
+            guard token.hasPrefix("@") else { return nil }
+            let raw = token.dropFirst()
+            let trimmed = raw.trimmingCharacters(in: CharacterSet(charactersIn: ".,!?:;\"'()[]{}"))
+            return trimmed.isEmpty ? nil : String(trimmed)
+        }
+        if usernames.isEmpty { return [] }
+
+        let lookup = Dictionary(uniqueKeysWithValues: friendManager.friends.map { ($0.username.lowercased(), $0) })
+        let unique = Set(usernames.map { $0.lowercased() })
+        return unique.compactMap { lookup[$0] }
     }
 
     private func loadPinnedState() async {
@@ -1158,12 +1411,13 @@ struct FilterButton: View {
             .foregroundStyle(isSelected ? .white : .primary)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
+            .fixedSize()
             .background {
                 RoundedRectangle(cornerRadius: 20)
                     .fill(isSelected ? Color.orange : Color.gray.opacity(0.15))
             }
         }
+        .buttonStyle(.plain)
     }
 }
 

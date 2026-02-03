@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import UIKit
 import UserNotifications
 
 @MainActor
@@ -30,6 +31,10 @@ class NotificationPermissionManager: ObservableObject {
         do {
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
             await checkAuthorizationStatus()
+            if granted {
+                UIApplication.shared.registerForRemoteNotifications()
+                await SmartNotificationManager.shared.scheduleSmartNotifications()
+            }
             return granted
         } catch {
             print("Erreur lors de la demande d'autorisation de notifications: \(error)")

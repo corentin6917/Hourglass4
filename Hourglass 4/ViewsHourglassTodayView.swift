@@ -25,8 +25,8 @@ struct HourglassTodayView: View {
 
     var lifeRatio: Double {
         let earned = earnedGrainsToday
-        let potential = potentialGrainsToday
-        return potential > 0 ? (earned / potential) : 0.0
+        let budget = max(dailyBudget, 1.0)
+        return min(earned / budget, 1.0)
     }
 
     var todayGrains: Double {
@@ -38,13 +38,6 @@ struct HourglassTodayView: View {
         goalManager.todayGoals
             .filter { $0.status == .completed }
             .reduce(0) { $0 + $1.grainValue }
-    }
-
-    var potentialGrainsToday: Double {
-        let pending = goalManager.todayGoals
-            .filter { $0.status == .pending }
-            .reduce(0) { $0 + $1.grainValue }
-        return max(pending, 10.0) // Minimum 10 grains de potentiel
     }
 
     var ratioColor: Color {
@@ -62,7 +55,7 @@ struct HourglassTodayView: View {
     }
 
     var totalGrainsDisplay: Int {
-        Int(dailyBudget.rounded()) // Utilise le budget quotidien adaptatif
+        max(1, Int(dailyBudget.rounded(.up))) // Même logique que l'écran Objectifs
     }
 
     var earnedGrainsDisplay: Int {
@@ -75,6 +68,11 @@ struct HourglassTodayView: View {
 
     var todayObjectivesCount: Int {
         goalManager.todayGoals.count
+    }
+
+    // Doit rester aligné avec l'écran Objectifs (budget du jour - grains validés)
+    var availableGrainsFromBudget: Double {
+        max(dailyBudget - todayGrains, 0)
     }
 
     var motivationalMessage: String {
@@ -188,9 +186,9 @@ struct HourglassTodayView: View {
 
                                     GrainClockView(
                                         total: totalGrainsDisplay,
-                                        filled: earnedGrainsDisplay,
+                                        earned: todayGrains,
                                         color: ratioColor,
-                                        value: "\(Int(ceil(todayGrains)))"
+                                        value: "\(Int(todayGrains.rounded(.down)))"
                                     )
                                     .frame(width: 200, height: 200)
                                 }
@@ -201,7 +199,7 @@ struct HourglassTodayView: View {
                                 }
 
                                 Text(motivationalMessage)
-                                    .font(.caption)
+                                    .font(.caption2)
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.orange)
                                     .padding(.horizontal, 16)
@@ -214,7 +212,7 @@ struct HourglassTodayView: View {
                                 VStack(spacing: 12) {
                                     if showHeritageInfo {
                                         VStack(alignment: .leading, spacing: 8) {
-                                            Text("Héritage total")
+                                            Text("Sablier")
                                                 .font(.system(size: 14, weight: .semibold))
 
                                             Text("C'est la somme de tous les grains gagnés depuis le début. Il augmente à chaque objectif validé.")
@@ -238,8 +236,8 @@ struct HourglassTodayView: View {
                                     }
 
                                     SablierPrimaryTile(
-                                        icon: "sparkles",
-                                        title: "Héritage total",
+                                        icon: "hourglass",
+                                        title: "Sablier",
                                         value: "\(Int(totalHeritage))"
                                     )
                                     .onTapGesture {
@@ -263,13 +261,7 @@ struct HourglassTodayView: View {
                                         SablierMiniTile(
                                             icon: "tray",
                                             title: "Disponibles",
-                                            value: "\(Int(ceil(max(potentialGrainsToday - todayGrains, 0))))"
-                                        )
-
-                                        SablierMiniTile(
-                                            icon: "hourglass",
-                                            title: "Aujourd'hui",
-                                            value: "\(earnedGrainsDisplay)/\(totalGrainsDisplay)"
+                                            value: "\(Int(ceil(availableGrainsFromBudget)))"
                                         )
                                     }
                                     if showActiveDaysInfo {
@@ -536,7 +528,7 @@ struct SablierPrimaryTile: View {
     let title: String
     let value: String
     private var isOrangeTitle: Bool {
-        title == "Héritage total"
+        title == "Sablier"
     }
 
     var body: some View {
@@ -555,7 +547,7 @@ struct SablierPrimaryTile: View {
                     .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.primary)
                 Text(title)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(isOrangeTitle ? .orange : .secondary)
             }
 
@@ -582,20 +574,29 @@ struct SablierMiniTile: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.orange)
+        HStack(spacing: 10) {
+            Circle()
+                .fill(Color.orange.opacity(0.18))
+                .frame(width: 26, height: 26)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.orange)
+                }
 
-            Text(value)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
 
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(isOrangeTitle ? .orange : .secondary)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(isOrangeTitle ? .orange : .secondary)
+            }
+
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -632,7 +633,7 @@ struct HourglassHaloView: View {
 
 struct GrainClockView: View {
     let total: Int
-    let filled: Int
+    let earned: Double
     let color: Color
     let value: String
 
@@ -645,21 +646,23 @@ struct GrainClockView: View {
             let size = min(proxy.size.width, proxy.size.height)
             let radius = size / 2 - 12
             let markers = max(5, min(15, total)) // Nombre de points = budget quotidien (entre 5 et 15)
-            let filledCount = markerFillCount(total: total, filled: filled, markers: markers)
+            let progress = clampedProgress(total: total, earned: earned)
+            let filledCount = markerFillCount(progress: progress, markers: markers)
+            let snappedProgress = markers > 0 ? Double(filledCount) / Double(markers) : 0
 
             ZStack {
                 Circle()
                     .stroke(Color.orange.opacity(0.12), lineWidth: 8)
 
                 Circle()
-                    .trim(from: 0, to: total > 0 ? min(1, Double(filled) / Double(total)) : 0)
+                    .trim(from: 0, to: snappedProgress)
                     .stroke(
                         LinearGradient(
                             colors: [color.opacity(0.9), color],
                             startPoint: .top,
                             endPoint: .bottom
                         ),
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 8, lineCap: .butt)
                     )
                     .rotationEffect(.degrees(-90))
 
@@ -667,8 +670,7 @@ struct GrainClockView: View {
                     let angle = (Double(index) / Double(markers)) * (2 * Double.pi) - (Double.pi / 2)
                     let x = (size / 2) + cos(angle) * radius
                     let y = (size / 2) + sin(angle) * radius
-                    let threshold = Int(round(Double(total) * (Double(index + 1) / Double(markers))))
-                    let isFilled = filled >= max(1, threshold)
+                    let isFilled = index < filledCount
                     let isActive = isFilled && (pulseAll || activeIndex == index)
 
                     Circle()
@@ -697,7 +699,7 @@ struct GrainClockView: View {
             animationTask?.cancel()
             animationTask = nil
         }
-        .onChange(of: filled) { _, _ in
+        .onChange(of: earned) { _, _ in
             startMarkerAnimation()
         }
         .onChange(of: total) { _, _ in
@@ -705,16 +707,14 @@ struct GrainClockView: View {
         }
     }
 
-    private func markerFillCount(total: Int, filled: Int, markers: Int) -> Int {
+    private func clampedProgress(total: Int, earned: Double) -> Double {
         guard total > 0 else { return 0 }
-        var count = 0
-        for index in 0..<markers {
-            let threshold = Int(round(Double(total) * (Double(index + 1) / Double(markers))))
-            if filled >= max(1, threshold) {
-                count += 1
-            }
-        }
-        return count
+        return min(1, max(0, earned / Double(total)))
+    }
+
+    private func markerFillCount(progress: Double, markers: Int) -> Int {
+        let raw = floor(progress * Double(markers))
+        return min(markers, max(0, Int(raw)))
     }
 
     private func startMarkerAnimation() {
@@ -725,7 +725,8 @@ struct GrainClockView: View {
         animationTask = Task {
             while !Task.isCancelled {
                 let markers = max(5, min(15, total))
-                let filledCount = markerFillCount(total: total, filled: filled, markers: markers)
+                let progress = clampedProgress(total: total, earned: earned)
+                let filledCount = markerFillCount(progress: progress, markers: markers)
 
                 guard filledCount > 0 else {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)

@@ -78,6 +78,7 @@ struct NotificationsView: View {
                         showNewConversation = true
                     } label: {
                         Image(systemName: "plus")
+                            .foregroundStyle(Theme.Colors.accent)
                     }
                 }
             }
@@ -100,45 +101,44 @@ struct NotificationsView: View {
                     Text(error)
                 }
             }
+            .background(Theme.Colors.background)
         }
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Theme.Spacing.medium) {
             Image(systemName: "message.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.orange.opacity(0.6))
+                .font(.system(size: 52, weight: .semibold))
+                .foregroundStyle(Theme.Colors.accent)
 
             Text("Aucun message")
-                .font(.headline)
+                .font(Theme.Typography.titleMedium)
+                .foregroundColor(Theme.Colors.textPrimary)
 
             Text("Vous recevrez ici les messages et transfusions de grains de vos amis")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.bodyMedium)
+                .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(uiColor: .systemGroupedBackground),
-                    Color(uiColor: .systemBackground)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(Theme.Colors.background)
     }
 
     private var contentList: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
+            LazyVStack(spacing: Theme.Spacing.large) {
                 let visibleConversations = filteredConversations
+                let totalUnread = conversations.reduce(0) { $0 + $1.unreadCount }
+
+                InboxHeader(
+                    totalConversations: conversations.count,
+                    totalUnread: totalUnread
+                )
 
                 // Section Transfusions
                 if !transfers.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                         SectionHeader(
                             title: "Transfusions",
                             subtitle: "\(transfers.count) reçue\(transfers.count > 1 ? "s" : "")"
@@ -146,14 +146,14 @@ struct NotificationsView: View {
 
                         ForEach(transfers) { transfer in
                             TransferCard(transfer: transfer)
-                                .padding(.horizontal, 20)
+                                .padding(.horizontal, Theme.Spacing.large)
                         }
                     }
                 }
 
                 // Section Messages (groupés par conversation)
                 if !visibleConversations.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                         SectionHeader(
                             title: "Messages",
                             subtitle: ""
@@ -170,35 +170,27 @@ struct NotificationsView: View {
                                 )
                             }
                             .buttonStyle(.plain)
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, Theme.Spacing.large)
                         }
                     }
                 } else if !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: Theme.Spacing.small) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.secondary.opacity(0.6))
+                            .font(.system(size: 44, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.textTertiary)
                         Text("Aucune conversation trouvée")
-                            .font(.headline)
+                            .font(Theme.Typography.titleSmall)
+                            .foregroundColor(Theme.Colors.textPrimary)
                         Text("Essaie un autre nom ou un autre mot-clé")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(Theme.Typography.bodySmall)
+                            .foregroundStyle(Theme.Colors.textSecondary)
                     }
-                    .padding(.vertical, 24)
+                    .padding(.vertical, Theme.Spacing.large)
                 }
             }
-            .padding(.vertical, 16)
+            .padding(.vertical, Theme.Spacing.medium)
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(uiColor: .systemGroupedBackground),
-                    Color(uiColor: .systemBackground)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(Theme.Colors.background)
     }
 
     private func startListeners() {
@@ -253,6 +245,7 @@ struct NotificationsView: View {
                     await handleTransfersSnapshot(snapshot)
                 }
             }
+
     }
 
     private func stopListeners() {
@@ -328,6 +321,7 @@ struct NotificationsView: View {
         updateLoadingState()
     }
 
+
     @MainActor
     private func updateUserCache(for ids: Set<String>) async {
         let missingIds = ids.filter { userCache[$0] == nil }
@@ -363,6 +357,258 @@ struct NotificationsView: View {
     }
 }
 
+// MARK: - Mention Notification Model
+
+struct MentionNotification: Identifiable {
+    let id: String
+    let type: String
+    let fromUserId: String
+    let fromUsername: String
+    let fromDisplayName: String?
+    let fromProfileImageURL: String?
+    let toUserId: String
+    let victoryId: String
+    let victoryTitle: String?
+    let victoryEmoji: String?
+    let commentId: String
+    let text: String
+    let grainAmount: Double?
+    let createdAt: Date
+    let isRead: Bool
+}
+
+// MARK: - Mentions Notifications Center
+
+struct MentionsNotificationsView: View {
+    @State private var mentions: [MentionNotification] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    @State private var mentionsListener: ListenerRegistration?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView("Chargement...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if mentions.isEmpty {
+                    emptyStateView
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(mentions) { mention in
+                                MentionCard(mention: mention)
+                                    .padding(.horizontal, 20)
+                            }
+                        }
+                        .padding(.vertical, 16)
+                    }
+                }
+            }
+            .navigationTitle("Notifications")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+            .onAppear {
+                startListener()
+                markAllAsRead()
+            }
+            .onDisappear {
+                stopListener()
+            }
+            .alert("Erreur", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") {
+                    errorMessage = nil
+                }
+            } message: {
+                if let errorMessage {
+                    Text(errorMessage)
+                }
+            }
+        }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: Theme.Spacing.medium) {
+            Image(systemName: "bell.fill")
+                .font(.system(size: 52, weight: .semibold))
+                .foregroundStyle(Theme.Colors.accent)
+
+            Text("Aucune notification")
+                .font(Theme.Typography.titleMedium)
+                .foregroundStyle(Theme.Colors.textPrimary)
+
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.Colors.background)
+    }
+
+    private func startListener() {
+        stopListener()
+        errorMessage = nil
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            errorMessage = "Utilisateur non connecté"
+            isLoading = false
+            return
+        }
+
+        let db = Firestore.firestore()
+        mentionsListener = db.collection("notifications")
+            .whereField("toUserId", isEqualTo: currentUserId)
+            .order(by: "createdAt", descending: true)
+            .addSnapshotListener { snapshot, error in
+                if let error {
+                    Task { @MainActor in
+                        errorMessage = "Erreur de chargement: \(error.localizedDescription)"
+                        isLoading = false
+                    }
+                    return
+                }
+
+                guard let snapshot else { return }
+                Task { @MainActor in
+                    let documents = snapshot.documents
+                    let newMentions = documents.compactMap { doc -> MentionNotification? in
+                        let data = doc.data()
+                        guard let fromUserId = data["fromUserId"] as? String,
+                              let toUserId = data["toUserId"] as? String,
+                              let text = data["text"] as? String,
+                              let timestamp = data["createdAt"] as? Timestamp else {
+                            return nil
+                        }
+
+                        return MentionNotification(
+                            id: doc.documentID,
+                            type: data["type"] as? String ?? "mention",
+                            fromUserId: fromUserId,
+                            fromUsername: data["fromUsername"] as? String ?? "",
+                            fromDisplayName: data["fromDisplayName"] as? String,
+                            fromProfileImageURL: data["fromProfileImageURL"] as? String,
+                            toUserId: toUserId,
+                            victoryId: data["victoryId"] as? String ?? "",
+                            victoryTitle: data["victoryTitle"] as? String,
+                            victoryEmoji: data["victoryEmoji"] as? String,
+                            commentId: data["commentId"] as? String ?? "",
+                            text: text,
+                            grainAmount: data["grainAmount"] as? Double,
+                            createdAt: timestamp.dateValue(),
+                            isRead: data["isRead"] as? Bool ?? false
+                        )
+                    }
+
+                    mentions = newMentions
+                    isLoading = false
+                }
+            }
+    }
+
+    private func markAllAsRead() {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("notifications")
+            .whereField("toUserId", isEqualTo: currentUserId)
+            .whereField("isRead", isEqualTo: false)
+            .getDocuments { snapshot, _ in
+                guard let snapshot else { return }
+                let batch = db.batch()
+                snapshot.documents.forEach { doc in
+                    batch.updateData(["isRead": true], forDocument: doc.reference)
+                }
+                batch.commit(completion: nil)
+            }
+    }
+
+    private func stopListener() {
+        mentionsListener?.remove()
+        mentionsListener = nil
+    }
+}
+
+// MARK: - Mention Card Component
+
+struct MentionCard: View {
+    let mention: MentionNotification
+
+    private var senderName: String {
+        if let displayName = mention.fromDisplayName, !displayName.isEmpty {
+            return displayName
+        }
+        return mention.fromUsername.isEmpty ? "Utilisateur" : mention.fromUsername
+    }
+
+    private var titleText: String {
+        let emoji = mention.victoryEmoji ?? "✨"
+        let title = mention.victoryTitle ?? "victoire"
+        return "\(emoji) \(title)"
+    }
+
+    private var actionText: String {
+        switch mention.type {
+        case "comment":
+            return "\(senderName) a commenté ta victoire"
+        case "boost":
+            return "\(senderName) t'a donné un grain"
+        default:
+            return "\(senderName) t'a mentionné"
+        }
+    }
+
+    private var detailText: String? {
+        if mention.type == "comment" || mention.type == "mention" {
+            return mention.text.isEmpty ? nil : mention.text
+        }
+        if mention.type == "boost" {
+            return "⭐️ +\(Int(mention.grainAmount ?? 1)) grain"
+        }
+        return nil
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.medium) {
+            ProfileImageView(
+                imageURL: mention.fromProfileImageURL,
+                username: mention.fromUsername.isEmpty ? "U" : mention.fromUsername,
+                size: 46,
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
+            )
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
+                Text(actionText)
+                    .font(Theme.Typography.labelLarge)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+
+                Text(titleText)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+
+                if let detailText {
+                    Text(detailText)
+                        .font(Theme.Typography.captionSmall)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            Text(mention.createdAt, style: .time)
+                .font(Theme.Typography.captionSmall)
+                .foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+        )
+    }
+}
+
 // MARK: - Transfer Card Component
 
 struct TransferCard: View {
@@ -373,60 +619,48 @@ struct TransferCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Theme.Spacing.medium) {
             // Icône
             Circle()
-                .fill(Color.orange.opacity(0.18))
+                .fill(Theme.Colors.accentSubtle)
                 .frame(width: 46, height: 46)
                 .overlay {
                     Image(systemName: "heart.fill")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.Colors.accent)
                 }
 
             // Contenu
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
                 Text(senderName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(Theme.Typography.labelLarge)
+                    .foregroundStyle(Theme.Colors.textPrimary)
 
                 Text("Transfusion de \(Int(transfer.grainAmount)) grain\(transfer.grainAmount > 1 ? "s" : "")")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Typography.bodySmall)
+                    .foregroundStyle(Theme.Colors.textSecondary)
 
                 if let message = transfer.message {
                     Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .lineLimit(2)
                 }
 
                 Text(transfer.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(Theme.Typography.captionSmall)
+                    .foregroundStyle(Theme.Colors.textTertiary)
             }
 
             Spacer()
         }
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(uiColor: .systemBackground),
-                            Color.orange.opacity(0.04)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.black.opacity(0.04), lineWidth: 1)
-        }
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+        )
     }
 }
 
@@ -465,43 +699,44 @@ struct NewConversationView: View {
                                 NavigationLink {
                                     ConversationView(friend: friend)
                                 } label: {
-                                    HStack(spacing: 12) {
+                                    HStack(spacing: Theme.Spacing.small) {
                                         ProfileImageView(
                                             imageURL: friend.profileImageURL,
                                             username: friend.username,
                                             size: 44,
-                                            gradientColors: [.orange, .orange.opacity(0.6)]
+                                            gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
                                         )
 
-                                        VStack(alignment: .leading, spacing: 4) {
+                                        VStack(alignment: .leading, spacing: Theme.Spacing.xxxSmall) {
                                             Text(friend.displayName ?? friend.username)
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                                .foregroundStyle(.primary)
+                                                .font(Theme.Typography.labelLarge)
+                                                .foregroundStyle(Theme.Colors.textPrimary)
 
                                             Text("@\(friend.username)")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(Theme.Typography.captionSmall)
+                                                .foregroundStyle(Theme.Colors.textTertiary)
                                         }
 
                                         Spacer()
 
                                         Image(systemName: "chevron.right")
                                             .font(.footnote)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(Theme.Colors.textTertiary)
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color(uiColor: .secondarySystemBackground))
-                                    }
+                                    .padding(.horizontal, Theme.Spacing.medium)
+                                    .padding(.vertical, Theme.Spacing.small)
+                                    .background(Theme.Colors.surface)
+                                    .cornerRadius(Theme.CornerRadius.large)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                                            .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+                                    )
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, Theme.Spacing.medium)
+                        .padding(.vertical, Theme.Spacing.small)
                     }
                 }
             }
@@ -529,31 +764,23 @@ struct NewConversationView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Theme.Spacing.medium) {
             Image(systemName: "person.2.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.orange.opacity(0.4))
+                .font(.system(size: 52, weight: .semibold))
+                .foregroundStyle(Theme.Colors.accent)
 
             Text(searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Aucun complice" : "Aucun complice trouvé")
-                .font(.headline)
+                .font(Theme.Typography.titleMedium)
+                .foregroundStyle(Theme.Colors.textPrimary)
 
             Text(searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Ajoute des amis pour démarrer une discussion." : "Essaie un autre nom.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.bodyMedium)
+                .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                .padding(.horizontal, Theme.Spacing.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(uiColor: .systemGroupedBackground),
-                    Color(uiColor: .systemBackground)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(Theme.Colors.background)
     }
 
     private func loadFriends() async {
@@ -582,82 +809,68 @@ struct ConversationCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Theme.Spacing.medium) {
             // Avatar
             ProfileImageView(
                 imageURL: user.profileImageURL,
                 username: user.username,
                 size: 52,
-                gradientColors: [.orange, .orange.opacity(0.6)]
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
             )
 
             // Contenu
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
                 HStack(alignment: .center) {
                     Text(displayName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
+                        .font(Theme.Typography.labelLarge)
+                        .foregroundStyle(Theme.Colors.textPrimary)
 
                     Text("@\(user.username)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.Typography.captionSmall)
+                        .foregroundStyle(Theme.Colors.textTertiary)
 
                     Spacer()
 
                     Text(lastMessage.createdAt.formatted(date: .omitted, time: .shortened))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .font(Theme.Typography.captionSmall)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .padding(.horizontal, Theme.Spacing.xSmall)
+                        .padding(.vertical, Theme.Spacing.xxxSmall)
                         .background {
                             Capsule()
-                                .fill(Color.orange.opacity(0.14))
+                                .fill(Theme.Colors.accentSubtle)
                         }
                 }
 
-                HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: Theme.Spacing.small) {
                     Text(lastMessage.text)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.Typography.bodySmall)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .lineLimit(2)
 
                     Spacer()
 
                     if unreadCount > 0 {
                         Text("\(unreadCount)")
-                            .font(.caption2)
-                            .fontWeight(.bold)
+                            .font(Theme.Typography.labelSmall)
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, Theme.Spacing.xSmall)
+                            .padding(.vertical, Theme.Spacing.xxxSmall)
                             .background {
                                 Capsule()
-                                    .fill(Color.orange)
+                                    .fill(Theme.Colors.accent)
                             }
                     }
                 }
             }
         }
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(uiColor: .systemBackground),
-                            Color.orange.opacity(0.04)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.black.opacity(0.04), lineWidth: 1)
-        }
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+        )
     }
 }
 
@@ -668,16 +881,16 @@ struct SectionHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(Theme.Typography.titleSmall)
+                .foregroundStyle(Theme.Colors.textPrimary)
 
             Spacer()
 
             Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.captionSmall)
+                .foregroundStyle(Theme.Colors.textTertiary)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Theme.Spacing.large)
     }
 }
 
@@ -686,33 +899,31 @@ struct InboxHeader: View {
     let totalUnread: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
             Text("Boite de reception")
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundStyle(.primary)
+                .font(Theme.Typography.headlineSmall)
+                .foregroundStyle(Theme.Colors.textPrimary)
 
-            HStack(spacing: 8) {
+            HStack(spacing: Theme.Spacing.small) {
                 Text("\(totalConversations) conversation\(totalConversations > 1 ? "s" : "")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
 
                 if totalUnread > 0 {
                     Text("\(totalUnread) non lu\(totalUnread > 1 ? "s" : "")")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
+                        .font(Theme.Typography.labelSmall)
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, Theme.Spacing.small)
+                        .padding(.vertical, Theme.Spacing.xxSmall)
                         .background {
                             Capsule()
-                                .fill(Color.orange)
+                                .fill(Theme.Colors.accent)
                         }
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
+        .padding(.horizontal, Theme.Spacing.large)
+        .padding(.top, Theme.Spacing.xSmall)
     }
 }
 
