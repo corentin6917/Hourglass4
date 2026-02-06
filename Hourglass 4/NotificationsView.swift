@@ -8,12 +8,14 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import UIKit
 
 struct NotificationsView: View {
     let viewModel: HourglassViewModel?
 
     @State private var messages: [FriendMessage] = []
     @State private var transfers: [GrainTransfer] = []
+    @State private var groups: [GroupChat] = []
     @State private var isLoading = true
     @State private var hasLoadedOnce = false
     @State private var errorMessage: String?
@@ -24,6 +26,7 @@ struct NotificationsView: View {
     @State private var userCache: [String: UserData] = [:]
     @State private var hasLoadedMessages = false
     @State private var hasLoadedTransfers = false
+    @State private var isLoadingGroups = false
 
     // Grouper les messages par utilisateur (conversation)
     var groupedMessages: [String: [FriendMessage]] {
@@ -60,25 +63,57 @@ struct NotificationsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isLoading && !hasLoadedOnce {
-                    ProgressView("Chargement...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if conversations.isEmpty && transfers.isEmpty {
-                    emptyStateView
-                } else {
-                    contentList
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color.white,
+                        Color.orange.opacity(0.05)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                Group {
+                    if isLoading && !hasLoadedOnce {
+                        ProgressView("Chargement...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if conversations.isEmpty && transfers.isEmpty && groups.isEmpty {
+                        emptyStateView
+                    } else {
+                        contentList
+                    }
                 }
             }
-            .navigationTitle("Messages")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("Messages")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.orange.opacity(0.12))
+                                .overlay {
+                                    Capsule()
+                                        .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                                }
+                        )
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showNewConversation = true
                     } label: {
                         Image(systemName: "plus")
-                            .foregroundStyle(Theme.Colors.accent)
+                            .foregroundStyle(.orange)
+                            .padding(8)
+                            .background(
+                                Circle()
+                                    .fill(Color.orange.opacity(0.12))
+                            )
                     }
                 }
             }
@@ -92,6 +127,11 @@ struct NotificationsView: View {
             .sheet(isPresented: $showNewConversation) {
                 NewConversationView()
             }
+            .onChange(of: showNewConversation) { _, newValue in
+                if newValue == false {
+                    Task { await loadGroups() }
+                }
+            }
             .alert("Erreur", isPresented: .constant(errorMessage != nil)) {
                 Button("OK") {
                     errorMessage = nil
@@ -101,15 +141,14 @@ struct NotificationsView: View {
                     Text(error)
                 }
             }
-            .background(Theme.Colors.background)
         }
     }
 
     private var emptyStateView: some View {
         VStack(spacing: Theme.Spacing.medium) {
-            Image(systemName: "message.fill")
-                .font(.system(size: 52, weight: .semibold))
-                .foregroundStyle(Theme.Colors.accent)
+            Image(systemName: "hourglass")
+                .font(.system(size: 52, weight: .regular))
+                .foregroundStyle(.orange)
 
             Text("Aucun message")
                 .font(Theme.Typography.titleMedium)
@@ -122,7 +161,7 @@ struct NotificationsView: View {
                 .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.Colors.background)
+        .background(Color.clear)
     }
 
     private var contentList: some View {
@@ -147,6 +186,26 @@ struct NotificationsView: View {
                         ForEach(transfers) { transfer in
                             TransferCard(transfer: transfer)
                                 .padding(.horizontal, Theme.Spacing.large)
+                        }
+                    }
+                }
+
+                // Section Groupes
+                if !groups.isEmpty {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                        SectionHeader(
+                            title: "Groupes",
+                            subtitle: "\(groups.count) actif\(groups.count > 1 ? "s" : "")"
+                        )
+
+                        ForEach(groups) { group in
+                            NavigationLink {
+                                GroupConversationView(group: group)
+                            } label: {
+                                GroupConversationCard(group: group)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, Theme.Spacing.large)
                         }
                     }
                 }
@@ -246,6 +305,7 @@ struct NotificationsView: View {
                 }
             }
 
+        Task { await loadGroups() }
     }
 
     private func stopListeners() {
@@ -253,6 +313,21 @@ struct NotificationsView: View {
         messagesListener = nil
         transfersListener?.remove()
         transfersListener = nil
+    }
+
+    private func loadGroups() async {
+        isLoadingGroups = true
+        do {
+            let fetched = try await GroupChatManager.shared.fetchGroupsForCurrentUser()
+            groups = fetched.sorted { lhs, rhs in
+                let left = lhs.lastMessageAt ?? lhs.createdAt
+                let right = rhs.lastMessageAt ?? rhs.createdAt
+                return left > right
+            }
+        } catch {
+            errorMessage = "Erreur de chargement des groupes: \(error.localizedDescription)"
+        }
+        isLoadingGroups = false
     }
 
     @MainActor
@@ -672,6 +747,17 @@ struct NewConversationView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var searchQuery = ""
+    @State private var mode: ConversationCreationMode = .direct
+    @State private var groupName = ""
+    @State private var selectedMemberIds: Set<String> = []
+    @State private var groupImage: UIImage?
+    @State private var showImagePicker = false
+    @State private var isCreatingGroup = false
+
+    private enum ConversationCreationMode: String, CaseIterable {
+        case direct = "Complice"
+        case group = "Groupe"
+    }
 
     private var filteredFriends: [UserData] {
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -695,44 +781,34 @@ struct NewConversationView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 12) {
-                            ForEach(filteredFriends) { friend in
-                                NavigationLink {
-                                    ConversationView(friend: friend)
-                                } label: {
-                                    HStack(spacing: Theme.Spacing.small) {
-                                        ProfileImageView(
-                                            imageURL: friend.profileImageURL,
-                                            username: friend.username,
-                                            size: 44,
-                                            gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
-                                        )
-
-                                        VStack(alignment: .leading, spacing: Theme.Spacing.xxxSmall) {
-                                            Text(friend.displayName ?? friend.username)
-                                                .font(Theme.Typography.labelLarge)
-                                                .foregroundStyle(Theme.Colors.textPrimary)
-
-                                            Text("@\(friend.username)")
-                                                .font(Theme.Typography.captionSmall)
-                                                .foregroundStyle(Theme.Colors.textTertiary)
-                                        }
-
-                                        Spacer()
-
-                                        Image(systemName: "chevron.right")
-                                            .font(.footnote)
-                                            .foregroundStyle(Theme.Colors.textTertiary)
-                                    }
-                                    .padding(.horizontal, Theme.Spacing.medium)
-                                    .padding(.vertical, Theme.Spacing.small)
-                                    .background(Theme.Colors.surface)
-                                    .cornerRadius(Theme.CornerRadius.large)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
-                                            .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
-                                    )
+                            Picker("Mode", selection: $mode) {
+                                ForEach(ConversationCreationMode.allCases, id: \.self) { item in
+                                    Text(item.rawValue).tag(item)
                                 }
-                                .buttonStyle(.plain)
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal, Theme.Spacing.medium)
+
+                            if mode == .group {
+                                groupCreationHeader
+                            }
+
+                            ForEach(filteredFriends) { friend in
+                                if mode == .direct {
+                                    NavigationLink {
+                                        ConversationView(friend: friend)
+                                    } label: {
+                                        friendRow(friend, showsChevron: true, isSelectable: false)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else {
+                                    Button {
+                                        toggleSelection(friend.id)
+                                    } label: {
+                                        friendRow(friend, showsChevron: false, isSelectable: true)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                         .padding(.horizontal, Theme.Spacing.medium)
@@ -747,9 +823,26 @@ struct NewConversationView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") { dismiss() }
                 }
+                if mode == .group {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            Task { await createGroup() }
+                        } label: {
+                            if isCreatingGroup {
+                                ProgressView()
+                            } else {
+                                Text("Créer")
+                            }
+                        }
+                        .disabled(!canCreateGroup)
+                    }
+                }
             }
             .task {
                 await loadFriends()
+            }
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(selectedImage: $groupImage)
             }
             .alert("Erreur", isPresented: .constant(errorMessage != nil)) {
                 Button("OK") {
@@ -794,6 +887,120 @@ struct NewConversationView: View {
         }
 
         isLoading = false
+    }
+
+    private var canCreateGroup: Bool {
+        let trimmed = groupName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !isCreatingGroup && selectedMemberIds.count <= 19
+    }
+
+    private var groupCreationHeader: some View {
+        VStack(spacing: Theme.Spacing.small) {
+            HStack(spacing: Theme.Spacing.medium) {
+                Button {
+                    showImagePicker = true
+                } label: {
+                    if let image = groupImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 54, height: 54)
+                            .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(Theme.Colors.accent.opacity(0.15))
+                            .frame(width: 54, height: 54)
+                            .overlay {
+                                Image(systemName: "camera.fill")
+                                    .foregroundStyle(Theme.Colors.accent)
+                            }
+                    }
+                }
+                .buttonStyle(.plain)
+
+                TextField("Nom du groupe", text: $groupName)
+                    .textInputAutocapitalization(.words)
+                    .padding(.horizontal, Theme.Spacing.small)
+                    .padding(.vertical, Theme.Spacing.xSmall)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                            .fill(Theme.Colors.surface)
+                    )
+            }
+
+            Text("Choisis jusqu’à 20 complices (toi inclus).")
+                .font(Theme.Typography.captionSmall)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, Theme.Spacing.medium)
+    }
+
+    private func friendRow(_ friend: UserData, showsChevron: Bool, isSelectable: Bool) -> some View {
+        let isSelected = selectedMemberIds.contains(friend.id)
+        return HStack(spacing: Theme.Spacing.small) {
+            ProfileImageView(
+                imageURL: friend.profileImageURL,
+                username: friend.username,
+                size: 44,
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
+            )
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxxSmall) {
+                Text(friend.displayName ?? friend.username)
+                    .font(Theme.Typography.labelLarge)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+
+                Text("@\(friend.username)")
+                    .font(Theme.Typography.captionSmall)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+
+            Spacer()
+
+            if isSelectable {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Theme.Colors.accent : Theme.Colors.textTertiary)
+            } else if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.medium)
+        .padding(.vertical, Theme.Spacing.small)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+        )
+    }
+
+    private func toggleSelection(_ userId: String) {
+        if selectedMemberIds.contains(userId) {
+            selectedMemberIds.remove(userId)
+        } else if selectedMemberIds.count < 19 {
+            selectedMemberIds.insert(userId)
+        }
+    }
+
+    private func createGroup() async {
+        isCreatingGroup = true
+        errorMessage = nil
+
+        do {
+            _ = try await GroupChatManager.shared.createGroup(
+                name: groupName,
+                image: groupImage,
+                memberIds: Array(selectedMemberIds)
+            )
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isCreatingGroup = false
     }
 }
 
@@ -865,12 +1072,354 @@ struct ConversationCard: View {
             }
         }
         .padding(Theme.Spacing.medium)
-        .background(Theme.Colors.surface)
-        .cornerRadius(Theme.CornerRadius.large)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .fill(Color.white.opacity(0.9))
+                .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+        )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
-                .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+                .stroke(Color.orange.opacity(0.12), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Group Conversation Card
+
+struct GroupConversationCard: View {
+    let group: GroupChat
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.medium) {
+            ProfileImageView(
+                imageURL: group.imageURL,
+                username: group.name,
+                size: 52,
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
+            )
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
+                HStack(alignment: .center) {
+                    Text(group.name)
+                        .font(Theme.Typography.labelLarge)
+                        .foregroundStyle(Theme.Colors.textPrimary)
+
+                    Spacer()
+
+                    if let lastAt = group.lastMessageAt {
+                        Text(lastAt.formatted(date: .omitted, time: .shortened))
+                            .font(Theme.Typography.captionSmall)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .padding(.horizontal, Theme.Spacing.xSmall)
+                            .padding(.vertical, Theme.Spacing.xxxSmall)
+                            .background {
+                                Capsule()
+                                    .fill(Theme.Colors.accentSubtle)
+                            }
+                    }
+                }
+
+                Text(group.lastMessageText ?? "Aucun message")
+                    .font(Theme.Typography.bodySmall)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+
+                Text("\(group.memberIds.count) membres")
+                    .font(Theme.Typography.captionSmall)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+        }
+        .padding(Theme.Spacing.medium)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .fill(Color.white.opacity(0.9))
+                .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                .stroke(Color.orange.opacity(0.12), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Group Conversation View
+
+struct GroupConversationView: View {
+    let group: GroupChat
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var messages: [GroupMessage] = []
+    @State private var messageText = ""
+    @State private var isSending = false
+    @State private var errorMessage: String?
+    @State private var members: [UserData] = []
+    @State private var showMembersSheet = false
+
+    private var currentUserId: String {
+        Auth.auth().currentUser?.uid ?? ""
+    }
+
+    private var canSend: Bool {
+        !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            groupHeader
+            themedDivider
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(messages) { message in
+                            GroupMessageBubble(
+                                message: message,
+                                sender: members.first(where: { $0.uid == message.fromUserId }),
+                                isFromCurrentUser: message.fromUserId == currentUserId
+                            )
+                            .id(message.id)
+                        }
+                    }
+                    .padding()
+                }
+                .onChange(of: messages.count) { _, _ in
+                    if let last = messages.last {
+                        withAnimation {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+
+            themedDivider
+            messageInputBar
+        }
+        .navigationTitle(group.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showMembersSheet = true
+                } label: {
+                    Image(systemName: "person.2.fill")
+                        .foregroundStyle(Theme.Colors.accent)
+                }
+            }
+        }
+        .background(Theme.Colors.background)
+        .onAppear {
+            Task {
+                await loadMessages()
+                await loadMembers()
+            }
+        }
+        .sheet(isPresented: $showMembersSheet) {
+            GroupMembersView(group: group, members: members, onRemove: { memberId in
+                Task {
+                    try? await GroupChatManager.shared.removeMember(groupId: group.id, memberId: memberId)
+                    await loadMembers()
+                }
+            })
+        }
+        .alert("Erreur", isPresented: .constant(errorMessage != nil)) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            if let errorMessage {
+                Text(errorMessage)
+            }
+        }
+    }
+
+    private var groupHeader: some View {
+        HStack(spacing: 12) {
+            ProfileImageView(
+                imageURL: group.imageURL,
+                username: group.name,
+                size: 40,
+                gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(group.name)
+                    .font(Theme.Typography.titleSmall)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text("\(group.memberIds.count) membres")
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+
+            Spacer()
+        }
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.background)
+    }
+
+    private var messageInputBar: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            TextField("Message...", text: $messageText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, Theme.Spacing.medium)
+                .padding(.vertical, Theme.Spacing.small)
+                .background {
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                        .fill(Theme.Colors.surface)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                        .stroke(Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+                )
+                .lineLimit(1...4)
+
+            Button {
+                Task { await sendMessage() }
+            } label: {
+                Image(systemName: isSending ? "hourglass" : "arrow.up.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(canSend ? Theme.Colors.accent : Theme.Colors.textTertiary)
+            }
+            .disabled(!canSend)
+        }
+        .padding(Theme.Spacing.medium)
+        .background(Theme.Colors.background)
+    }
+
+    private var themedDivider: some View {
+        Rectangle()
+            .fill(Theme.Colors.divider)
+            .frame(height: 1)
+    }
+
+    private func loadMessages() async {
+        do {
+            let items = try await GroupChatManager.shared.fetchMessages(groupId: group.id)
+            messages = items.sorted { $0.createdAt < $1.createdAt }
+        } catch {
+            errorMessage = "Erreur de chargement: \(error.localizedDescription)"
+        }
+    }
+
+    private func loadMembers() async {
+        var loaded: [UserData] = []
+        for memberId in group.memberIds {
+            if let data = try? await UserManager.shared.getUserProfile(uid: memberId) {
+                loaded.append(data)
+            }
+        }
+        members = loaded
+    }
+
+    private func sendMessage() async {
+        guard canSend else { return }
+        let text = messageText
+        messageText = ""
+        isSending = true
+        do {
+            try await GroupChatManager.shared.sendMessage(groupId: group.id, text: text)
+            await loadMessages()
+        } catch {
+            errorMessage = "Erreur lors de l'envoi: \(error.localizedDescription)"
+            messageText = text
+        }
+        isSending = false
+    }
+}
+
+struct GroupMessageBubble: View {
+    let message: GroupMessage
+    let sender: UserData?
+    let isFromCurrentUser: Bool
+
+    var body: some View {
+        HStack {
+            if isFromCurrentUser {
+                Spacer(minLength: 60)
+            }
+
+            VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
+                if !isFromCurrentUser {
+                    Text(sender?.displayName ?? sender?.username ?? "Complice")
+                        .font(Theme.Typography.captionSmall)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                }
+
+                Text(message.text)
+                    .font(Theme.Typography.bodyMedium)
+                    .padding(.horizontal, Theme.Spacing.medium)
+                    .padding(.vertical, Theme.Spacing.small)
+                    .background {
+                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                            .fill(isFromCurrentUser ? Theme.Colors.accent : Theme.Colors.surface)
+                    }
+                    .foregroundStyle(isFromCurrentUser ? .white : Theme.Colors.textPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
+                            .stroke(isFromCurrentUser ? Color.clear : Theme.Colors.border, lineWidth: Theme.BorderWidth.thin)
+                    )
+
+                Text(message.createdAt.formatted(date: .omitted, time: .shortened))
+                    .font(Theme.Typography.captionSmall)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .padding(.horizontal, Theme.Spacing.xxSmall)
+            }
+
+            if !isFromCurrentUser {
+                Spacer(minLength: 60)
+            }
+        }
+    }
+}
+
+struct GroupMembersView: View {
+    let group: GroupChat
+    let members: [UserData]
+    let onRemove: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var currentUserId: String {
+        Auth.auth().currentUser?.uid ?? ""
+    }
+
+    private var isAdmin: Bool {
+        group.adminIds.contains(currentUserId)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(members) { member in
+                    HStack(spacing: 12) {
+                        ProfileImageView(
+                            imageURL: member.profileImageURL,
+                            username: member.username,
+                            size: 36,
+                            gradientColors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.6)]
+                        )
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(member.displayName ?? member.username)
+                                .font(Theme.Typography.bodyMedium)
+                            Text("@\(member.username)")
+                                .font(Theme.Typography.captionSmall)
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                        Spacer()
+                        if isAdmin && member.uid != currentUserId {
+                            Button(role: .destructive) {
+                                onRemove(member.uid)
+                            } label: {
+                                Text("Retirer")
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Membres")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
     }
 }
 

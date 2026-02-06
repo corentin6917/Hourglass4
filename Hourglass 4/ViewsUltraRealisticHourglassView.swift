@@ -14,6 +14,7 @@ struct UltraRealisticHourglassView: View {
     
     @State private var sandParticles: [SandParticle] = []
     @State private var isFlowing = true
+    @State private var sandFlowTimer: Timer?
     
     var body: some View {
         ZStack {
@@ -47,6 +48,10 @@ struct UltraRealisticHourglassView: View {
             initializeSandParticles()
             startSandFlow()
         }
+        .onDisappear {
+            sandFlowTimer?.invalidate()
+            sandFlowTimer = nil
+        }
     }
     
     private func initializeSandParticles() {
@@ -65,7 +70,8 @@ struct UltraRealisticHourglassView: View {
     }
     
     private func startSandFlow() {
-        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+        sandFlowTimer?.invalidate()
+        sandFlowTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
             if isFlowing && topSandLevel > 0 {
                 animateSandParticles()
             }
@@ -756,4 +762,3 @@ let sandGradient: [Color] = [
         }
     }
 }
-

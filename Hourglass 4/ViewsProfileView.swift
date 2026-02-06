@@ -136,6 +136,8 @@ struct MainProfileCard: View {
     @State private var isLoadingHeritage = true
     @State private var showHeritageInfo = false
     @State private var showPinnedVictories = false
+    @State private var pendingFriendRequestsCount = 0
+    @State private var showAllFriends = false
 
     var username: String {
         userData?.username ?? "Utilisateur"
@@ -185,6 +187,19 @@ struct MainProfileCard: View {
                         .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
                     }
 
+                    if pendingFriendRequestsCount > 0 {
+                        Text("\(pendingFriendRequestsCount)")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .background(
+                                Circle()
+                                    .fill(.red)
+                            )
+                            .offset(x: 0, y: -66)
+                    }
+
                     Button {
                         showImagePicker = true
                     } label: {
@@ -220,7 +235,12 @@ struct MainProfileCard: View {
 
                 VStack(spacing: 12) {
                     HStack(spacing: 24) {
-                        StatItem(title: "\(friendsCount)", subtitle: "Complices")
+                        Button {
+                            showAllFriends = true
+                        } label: {
+                            StatItem(title: "\(friendsCount)", subtitle: "Complices")
+                        }
+                        .buttonStyle(.plain)
                         Divider()
                             .frame(height: 30)
                         StatItem(
@@ -340,15 +360,20 @@ struct MainProfileCard: View {
             loadUserData()
             loadFriendsCount()
             loadHeritageTotal()
+            loadPendingFriendRequestsCount()
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileDidUpdate)) { _ in
             loadUserData()
+            loadPendingFriendRequestsCount()
         }
         .sheet(isPresented: $showShareOptions) {
             ShareProfileView(shareText: generateShareText())
         }
         .sheet(isPresented: $showPinnedVictories) {
             PinnedVictoriesView(userId: Auth.auth().currentUser?.uid ?? "", displayName: displayName)
+        }
+        .sheet(isPresented: $showAllFriends) {
+            FriendsListView()
         }
         .sheet(isPresented: $showImagePicker) {
             ProfileImageSourcePicker(selectedImage: $selectedImage)
@@ -437,6 +462,21 @@ struct MainProfileCard: View {
             } catch {
                 await MainActor.run {
                     isLoadingHeritage = false
+                }
+            }
+        }
+    }
+
+    private func loadPendingFriendRequestsCount() {
+        Task {
+            do {
+                let requests = try await FriendManager.shared.getPendingFriendRequests()
+                await MainActor.run {
+                    pendingFriendRequestsCount = requests.count
+                }
+            } catch {
+                await MainActor.run {
+                    pendingFriendRequestsCount = 0
                 }
             }
         }
@@ -570,10 +610,25 @@ struct FriendsSection: View {
                     }
                     .padding()
                 } else {
-                    VStack(spacing: 12) {
-                        ForEach(friends) { friend in
-                            RealFriendCard(friend: friend) {
-                                loadFriends()
+                    Group {
+                        if friends.count > 3 {
+                            ScrollView(.vertical, showsIndicators: true) {
+                                VStack(spacing: 12) {
+                                    ForEach(friends) { friend in
+                                        RealFriendCard(friend: friend) {
+                                            loadFriends()
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 246)
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(friends) { friend in
+                                    RealFriendCard(friend: friend) {
+                                        loadFriends()
+                                    }
+                                }
                             }
                         }
                     }
@@ -822,6 +877,70 @@ struct RealFriendCard: View {
     }
 }
 
+struct FriendsListView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var friends: [UserData] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if isLoading {
+                    ProgressView()
+                        .padding()
+                } else if friends.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.orange.opacity(0.6))
+                        Text("Aucun complice")
+                            .font(.headline)
+                        Text("Ajoute des amis pour les voir ici.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(friends) { friend in
+                            RealFriendCard(friend: friend) {
+                                Task { await loadFriends() }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("Complices")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+            .onAppear {
+                Task { await loadFriends() }
+            }
+        }
+    }
+
+    private func loadFriends() async {
+        isLoading = true
+        do {
+            let friendsList = try await FriendManager.shared.getFriends()
+            await MainActor.run {
+                friends = friendsList
+                isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                friends = []
+                isLoading = false
+            }
+        }
+    }
+}
+
 struct SettingsRow<Trailing: View>: View {
     let symbol: String
     let color: Color
@@ -1002,6 +1121,7 @@ struct SettingsView: View {
                                     .labelsHidden()
                                     .tint(accentRose)
                             }
+
                         }
                         .background {
                             RoundedRectangle(cornerRadius: 20)
@@ -1454,6 +1574,150 @@ struct SettingsHelpView: View {
                 }
             }
         }
+    }
+}
+
+struct SettingsPhoneView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var phoneInput = ""
+    @State private var savedPhone: String?
+    @State private var accountPhone: String?
+    @State private var isSaving = false
+    @State private var feedbackMessage: String?
+
+    private var isVerified: Bool {
+        guard let savedPhone, let accountPhone else { return false }
+        return savedPhone == accountPhone
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Ajoute un numéro pour améliorer les suggestions d'amis via contacts.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if let savedPhone {
+                    HStack {
+                        Text("Numéro enregistré : \(mask(savedPhone))")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text(isVerified ? "Vérifié" : "Non vérifié")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(isVerified ? .green : .orange)
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+                }
+
+                TextField("Ex: +33612345678", text: $phoneInput)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.phonePad)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+
+                if let accountPhone {
+                    Button {
+                        phoneInput = accountPhone
+                    } label: {
+                        Label("Utiliser le numéro du compte", systemImage: "arrow.down.circle")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button {
+                    Task { await savePhone() }
+                } label: {
+                    if isSaving {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text("Enregistrer")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .disabled(isSaving)
+
+                if let feedbackMessage {
+                    Text(feedbackMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .navigationTitle("Numéro")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+            .onAppear {
+                accountPhone = UserManager.normalizeToE164(Auth.auth().currentUser?.phoneNumber)
+                Task { await loadSavedPhone() }
+            }
+        }
+    }
+
+    private func loadSavedPhone() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        if let data = try? await UserManager.shared.getUserProfile(uid: uid) {
+            await MainActor.run {
+                savedPhone = UserManager.normalizeToE164(data.phoneE164)
+            }
+        }
+    }
+
+    private func savePhone() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let normalized = UserManager.normalizeToE164(phoneInput)
+        guard let normalized else {
+            await MainActor.run {
+                feedbackMessage = "Numéro invalide. Utilise un format international (ex: +33...)."
+            }
+            return
+        }
+
+        await MainActor.run {
+            isSaving = true
+            feedbackMessage = nil
+        }
+
+        do {
+            try await Firestore.firestore().collection("users").document(uid).setData(
+                ["phone_e164": normalized],
+                merge: true
+            )
+            await MainActor.run {
+                savedPhone = normalized
+                feedbackMessage = "Numéro enregistré."
+                isSaving = false
+            }
+        } catch {
+            await MainActor.run {
+                feedbackMessage = "Impossible d'enregistrer le numéro."
+                isSaving = false
+            }
+        }
+    }
+
+    private func mask(_ phone: String) -> String {
+        let digits = phone.filter(\.isNumber)
+        guard digits.count > 4 else { return phone }
+        let suffix = digits.suffix(2)
+        return "••••••\(suffix)"
     }
 }
 
@@ -2000,6 +2264,7 @@ struct EditProfileView: View {
     @State private var fullName = ""
     @State private var username = ""
     @State private var email = ""
+    @State private var phoneInput = ""
     @State private var selectedGender: Gender = .notSpecified
     @State private var birthDate = Date()
     @State private var isPublic = true
@@ -2082,7 +2347,7 @@ struct EditProfileView: View {
     }
 
     private var profileHeader: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(
@@ -2109,15 +2374,9 @@ struct EditProfileView: View {
                 }
             }
 
-            Text("Informations personnelles")
-                .font(.system(size: 18, weight: .semibold))
-
-            Text("Ton profil, ta trace.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 4)
+        .padding(.top, 0)
     }
 
     private var personalInfoCard: some View {
@@ -2193,9 +2452,36 @@ struct EditProfileView: View {
             }
             .padding(14)
             .background(fieldBackground)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Image(systemName: "phone")
+                        .foregroundStyle(.orange)
+                    TextField("Ex: +33612345678", text: $phoneInput)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.phonePad)
+                        .font(.subheadline)
+                }
+                .padding(14)
+                .background(fieldBackground)
+
+                Text(phoneHint)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+            }
         }
         .padding(18)
         .background(cardBackground)
+    }
+
+    private var phoneHint: String {
+        let saved = UserManager.normalizeToE164(phoneInput)
+        let account = UserManager.normalizeToE164(Auth.auth().currentUser?.phoneNumber)
+        if let saved, let account, saved == account {
+            return "Numéro vérifié"
+        }
+        return "Format international recommandé (ex: +33...)."
     }
 
     private var additionalInfoCard: some View {
@@ -2305,6 +2591,7 @@ struct EditProfileView: View {
                     fullName = data?.displayName ?? ""
                     username = data?.username ?? ""
                     email = data?.email ?? currentUser.email ?? ""
+                    phoneInput = UserManager.normalizeToE164(data?.phoneE164) ?? UserManager.normalizeToE164(currentUser.phoneNumber) ?? ""
                     selectedGender = data?.gender ?? .notSpecified
                     birthDate = data?.birthDate ?? Date()
                     isPublic = data?.isPublic ?? true
@@ -2359,6 +2646,14 @@ struct EditProfileView: View {
         errorMessage = nil
         successMessage = nil
 
+        let trimmedPhone = phoneInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPhone = UserManager.normalizeToE164(trimmedPhone)
+        if !trimmedPhone.isEmpty && normalizedPhone == nil {
+            isSaving = false
+            errorMessage = "Numéro invalide. Utilise un format international (ex: +33612345678)."
+            return
+        }
+
         Task {
             do {
                 if trimmedUsernameLower != originalUsernameLower {
@@ -2374,7 +2669,8 @@ struct EditProfileView: View {
                     "displayName": fullName,
                     "gender": selectedGender.rawValue,
                     "birthDate": Timestamp(date: birthDate),
-                    "isPublic": isPublic
+                    "isPublic": isPublic,
+                    "phone_e164": normalizedPhone ?? ""
                 ])
 
                 await MainActor.run {
@@ -2546,7 +2842,7 @@ struct FindFriendsView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("Rechercher par email ou username", text: $searchText)
+                    TextField("Rechercher par username", text: $searchText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
                         .onSubmit {
@@ -2610,7 +2906,7 @@ struct FindFriendsView: View {
                         Text("Trouve tes Sabliers Complices")
                             .font(.title3)
                             .fontWeight(.medium)
-                        Text("Recherche par email ou nom d'utilisateur")
+                        Text("Recherche par nom d'utilisateur")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -2732,9 +3028,6 @@ struct UserSearchResultCard: View {
                 Text("@\(user.username)")
                     .font(.caption)
                     .foregroundStyle(.purple)
-                Text(user.email)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Spacer()

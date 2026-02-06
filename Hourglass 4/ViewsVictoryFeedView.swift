@@ -6,8 +6,10 @@
 //
 
 import SwiftUI
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import UIKit
 
 enum VictoryFilter {
     case friends
@@ -30,18 +32,31 @@ struct VictoryFeedView: View {
     @State private var unreadNotificationsCount = 0
     @State private var notificationsListener: ListenerRegistration?
     @State private var showNotifications = false
+    @State private var lastAutoRefreshDayKey = ""
+    private let autoRefreshTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var groupedVictories: [UserVictoryGroup] {
         let calendar = AppTimeZone.calendar
+        let currentUserId = Auth.auth().currentUser?.uid
+        let friendIds = Set(friendManager.friends.map(\.id))
         let visibleVictories: [Victory]
 
         switch selectedFilter {
-        case .friends, .mine:
-            visibleVictories = victoryManager.victories
+        case .friends:
+            visibleVictories = victoryManager.victories.filter { victory in
+                guard victory.userId != currentUserId else { return false }
+                return friendIds.isEmpty || friendIds.contains(victory.userId)
+            }
         case .thisWeek:
             let weekInterval = calendar.dateInterval(of: .weekOfYear, for: Date())
             let weekStart = weekInterval?.start ?? calendar.startOfDay(for: Date())
-            visibleVictories = victoryManager.victories.filter { $0.createdAt >= weekStart }
+            visibleVictories = victoryManager.victories.filter { victory in
+                guard victory.createdAt >= weekStart else { return false }
+                guard victory.userId != currentUserId else { return false }
+                return friendIds.isEmpty || friendIds.contains(victory.userId)
+            }
+        case .mine:
+            visibleVictories = victoryManager.victories.filter { $0.userId == currentUserId }
         }
 
         let grouped = Dictionary(grouping: visibleVictories) { $0.userId }
@@ -229,24 +244,47 @@ struct VictoryFeedView: View {
                         if victoryManager.isLoading {
                             ProgressView("Chargement...")
                                 .padding()
-                        } else if victoryManager.victories.isEmpty {
+                        } else if groupedVictories.isEmpty {
                             emptyState
                         } else {
                             LazyVStack(spacing: 16) {
                                 ForEach(groupedVictories) { group in
-                                    UserVictoryGroupView(
-                                        group: group,
-                                        userManager: userManager,
-                                        availableGrainsToday: availableGrainsToday,
-                                        canViewFeed: canViewCurrentFeed,
-                                        onTapComments: { victory in
-                                            selectedVictory = victory
-                                            showComments = true
-                                        },
-                                        onGrainSpent: { newSpent in
-                                            dailyGrainSpent = newSpent
+                                    if selectedFilter == .mine {
+                                        UserVictoryGroupView(
+                                            group: group,
+                                            userManager: userManager,
+                                            availableGrainsToday: availableGrainsToday,
+                                            canViewFeed: canViewCurrentFeed,
+                                            showBoostAction: false,
+                                            onTapComments: { victory in
+                                                selectedVictory = victory
+                                                showComments = true
+                                            },
+                                            onGrainSpent: { newSpent in
+                                                dailyGrainSpent = newSpent
+                                            }
+                                        )
+                                    } else {
+                                        UserVictoryGroupView(
+                                            group: group,
+                                            userManager: userManager,
+                                            availableGrainsToday: availableGrainsToday,
+                                            canViewFeed: canViewCurrentFeed,
+                                            showBoostAction: true,
+                                            onTapComments: { victory in
+                                                selectedVictory = victory
+                                                showComments = true
+                                            },
+                                            onGrainSpent: { newSpent in
+                                                dailyGrainSpent = newSpent
+                                            }
+                                        )
+                                        .scrollTransition(.interactive, axis: .vertical) { content, phase in
+                                            content
+                                                .scaleEffect(phase.isIdentity ? 1.0 : 0.97)
+                                                .opacity(phase.isIdentity ? 1.0 : 0.96)
                                         }
-                                    )
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
@@ -275,6 +313,9 @@ struct VictoryFeedView: View {
                         await loadSelectedFeed()
                     }
                 }
+                .onChange(of: victoryManager.victories.count) { _, _ in
+                    prefetchTopFeedImages()
+                }
                 .onAppear {
                     startNotificationsListener()
                 }
@@ -284,6 +325,9 @@ struct VictoryFeedView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .openVictoryFromNotification)) { notification in
                     guard let victoryId = notification.userInfo?["victoryId"] as? String else { return }
                     Task { await openVictory(victoryId: victoryId) }
+                }
+                .onReceive(autoRefreshTimer) { _ in
+                    autoRefreshAfter21hIfNeeded()
                 }
                 .sheet(item: $selectedVictory) { victory in
                     VictoryDetailView(victory: victory)
@@ -351,42 +395,26 @@ struct VictoryFeedView: View {
         case .mine:
             await loadMyPosts()
         }
+        prefetchTopFeedImages()
     }
 
     private func loadFriendsFeed() async {
         do {
             guard let currentUserId = Auth.auth().currentUser?.uid else {
-                print("❌ DEBUG - Aucun utilisateur connecté")
                 return
             }
-
-            print("🔍 DEBUG - Utilisateur actuel: \(currentUserId)")
 
             // Charger la liste des amis
             await friendManager.loadFriends()
 
             // Récupérer les IDs des amis
-            let friendIds = friendManager.friends.map { $0.id }
-
-            print("🔍 DEBUG - Nombre d'amis: \(friendIds.count)")
-            print("🔍 DEBUG - IDs des amis: \(friendIds)")
-
-            // Afficher les usernames des amis aussi
-            friendManager.friends.forEach { friend in
-                print("   - Ami: @\(friend.username) (ID: \(friend.id))")
-            }
+            let friendIds = friendManager.friends
+                .map { $0.id }
+                .filter { $0 != currentUserId }
 
             // Charger le fil des victoires (même si pas d'amis, on charge quand même pour mettre à jour isLoading)
             try await victoryManager.loadVictoryFeed(friendIds: friendIds)
-
-            print("🔍 DEBUG - Victoires chargées: \(victoryManager.victories.count)")
-            victoryManager.victories.forEach { victory in
-                print("   - \(victory.goalEmoji) \(victory.goalTitle) par @\(victory.username)")
-                print("     UserId: \(victory.userId)")
-                print("     Visible: \(victory.isVisible), Créé: \(victory.createdAt)")
-            }
         } catch {
-            print("❌ Erreur de chargement du fil: \(error.localizedDescription)")
             // Assurer que isLoading est désactivé même en cas d'erreur
             await MainActor.run {
                 victoryManager.isLoading = false
@@ -398,7 +426,6 @@ struct VictoryFeedView: View {
         do {
             try await victoryManager.loadMyActiveVictories()
         } catch {
-            print("❌ Erreur de chargement de mes posts: \(error.localizedDescription)")
             await MainActor.run {
                 victoryManager.isLoading = false
             }
@@ -447,6 +474,35 @@ struct VictoryFeedView: View {
                 selectedVictory = fetched
             }
         }
+    }
+
+    private func autoRefreshAfter21hIfNeeded() {
+        let now = Date()
+        let calendar = AppTimeZone.calendar
+        let hour = calendar.component(.hour, from: now)
+        guard hour >= 21 else { return }
+
+        let dayKey = VictoryManager.dayKey(for: now)
+        guard dayKey != lastAutoRefreshDayKey else { return }
+        lastAutoRefreshDayKey = dayKey
+
+        Task {
+            await loadSelectedFeed()
+        }
+    }
+
+    private func prefetchTopFeedImages() {
+        let topVictories = Array(groupedVictories.flatMap(\.victories).prefix(24))
+        let photoURLs = topVictories.map(\.photoURL)
+        let avatarURLs = topVictories.compactMap { victory -> String? in
+            let cached = userManager.cachedUsers[victory.userId]?.profileImageURL
+            if let cached, !cached.isEmpty { return cached }
+            if let fromVictory = victory.profileImageURL, !fromVictory.isEmpty { return fromVictory }
+            return nil
+        }
+
+        RemoteImageLoader.prefetch(urls: photoURLs)
+        ProfileImageView.prefetch(urlStrings: avatarURLs)
     }
 
     private var grainBadge: some View {
@@ -533,6 +589,7 @@ struct UserVictoryGroupView: View {
     @ObservedObject var userManager: UserManager
     let availableGrainsToday: Double
     let canViewFeed: Bool
+    let showBoostAction: Bool
     let onTapComments: (Victory) -> Void
     let onGrainSpent: (Double) -> Void
     @State private var selectedFriend: UserData?
@@ -542,6 +599,7 @@ struct UserVictoryGroupView: View {
         userManager: UserManager,
         availableGrainsToday: Double,
         canViewFeed: Bool = true,
+        showBoostAction: Bool = true,
         onTapComments: @escaping (Victory) -> Void,
         onGrainSpent: @escaping (Double) -> Void
     ) {
@@ -549,6 +607,7 @@ struct UserVictoryGroupView: View {
         self._userManager = ObservedObject(wrappedValue: userManager)
         self.availableGrainsToday = availableGrainsToday
         self.canViewFeed = canViewFeed
+        self.showBoostAction = showBoostAction
         self.onTapComments = onTapComments
         self.onGrainSpent = onGrainSpent
     }
@@ -611,17 +670,22 @@ struct UserVictoryGroupView: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
                     ForEach(group.victories) { victory in
                         VictoryCard(victory: victory, onTapComments: {
                             onTapComments(victory)
-                        }, showHeader: false, availableGrainsToday: availableGrainsToday, canViewFeed: canViewFeed) { newSpent in
+                        }, showHeader: false, availableGrainsToday: availableGrainsToday, canViewFeed: canViewFeed, showBoostAction: showBoostAction) { newSpent in
                             onGrainSpent(newSpent)
                         }
                         .frame(width: 320)
-                        .scrollTargetLayout()
+                        .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                            content
+                                .scaleEffect(phase.isIdentity ? 1.0 : 0.94)
+                                .opacity(phase.isIdentity ? 1.0 : 0.94)
+                        }
                     }
                 }
+                .scrollTargetLayout()
                 .padding(.horizontal, 2)
             }
             .scrollTargetBehavior(.viewAligned)
@@ -662,6 +726,7 @@ struct VictoryCard: View {
     var showHeader: Bool = true
     let availableGrainsToday: Double
     let canViewFeed: Bool
+    let showBoostAction: Bool
     let onGrainSpent: (Double) -> Void
 
     @StateObject private var userManager = UserManager.shared
@@ -675,6 +740,7 @@ struct VictoryCard: View {
         showHeader: Bool = true,
         availableGrainsToday: Double,
         canViewFeed: Bool = true,
+        showBoostAction: Bool = true,
         onGrainSpent: @escaping (Double) -> Void
     ) {
         self.victory = victory
@@ -682,6 +748,7 @@ struct VictoryCard: View {
         self.showHeader = showHeader
         self.availableGrainsToday = availableGrainsToday
         self.canViewFeed = canViewFeed
+        self.showBoostAction = showBoostAction
         self.onGrainSpent = onGrainSpent
     }
 
@@ -768,37 +835,12 @@ struct VictoryCard: View {
                 guard canViewFeed else { return }
                 showPhoto = true
             } label: {
-                AsyncImage(url: URL(string: victory.photoURL)) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(height: 300)
-                            .overlay {
-                                ProgressView()
-                            }
-
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 400)
-                            .cornerRadius(12)
-
-                    case .failure:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(height: 300)
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
+                CachedFeedImageView(
+                    urlString: victory.photoURL,
+                    fixedHeight: 260,
+                    placeholderHeight: 220,
+                    contentMode: .fill
+                )
                 .blur(radius: canViewFeed ? 0 : 16)
                 .overlay {
                     if !canViewFeed {
@@ -815,14 +857,27 @@ struct VictoryCard: View {
         
             // Actions
             HStack(spacing: 20) {
-                // Don 1 grain
-                Button {
-                    Task {
-                        await boostVictory()
+                if showBoostAction {
+                    // Don 1 grain
+                    Button {
+                        Task {
+                            await boostVictory()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: victory.boostedBy.contains(Auth.auth().currentUser?.uid ?? "") ? "circle.fill" : "circle")
+                                .foregroundStyle(.orange)
+
+                            Text("\(victory.boostCount)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                } label: {
+                    .disabled(isBoosting)
+                } else {
+                    // En "Mes victoires": affichage seul, sans action de don
                     HStack(spacing: 4) {
-                        Image(systemName: victory.boostedBy.contains(Auth.auth().currentUser?.uid ?? "") ? "circle.fill" : "circle")
+                        Image(systemName: "circle.fill")
                             .foregroundStyle(.orange)
 
                         Text("\(victory.boostCount)")
@@ -830,7 +885,6 @@ struct VictoryCard: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .disabled(isBoosting)
 
                 // Bouton Commentaires
                 Button {
@@ -904,28 +958,7 @@ struct VictoryPhotoView: View {
                 Color.black.opacity(0.95)
                     .ignoresSafeArea()
 
-                AsyncImage(url: URL(string: photoURL)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .tint(.white)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .padding()
-                    case .failure:
-                        VStack(spacing: 12) {
-                            Image(systemName: "photo")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.white)
-                            Text("Impossible de charger la photo")
-                                .foregroundStyle(.white)
-                        }
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
+                ZoomableFeedImageView(urlString: photoURL)
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
@@ -933,6 +966,214 @@ struct VictoryPhotoView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fermer") { dismiss() }
                         .foregroundStyle(.white)
+                }
+            }
+        }
+    }
+}
+
+private struct ZoomableFeedImageView: View {
+    let urlString: String
+    @StateObject private var loader: RemoteImageLoader
+    @State private var zoomScale: CGFloat = 1
+    @State private var baseScale: CGFloat = 1
+
+    init(urlString: String) {
+        self.urlString = urlString
+        _loader = StateObject(wrappedValue: RemoteImageLoader(urlString: urlString))
+    }
+
+    var body: some View {
+        Group {
+            if let image = loader.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(zoomScale)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                zoomScale = min(max(baseScale * value, 1), 4)
+                            }
+                            .onEnded { _ in
+                                baseScale = zoomScale
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            zoomScale = 1
+                            baseScale = 1
+                        }
+                    }
+            } else if loader.didFail {
+                Image(systemName: "photo")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.white.opacity(0.6))
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+        .onAppear {
+            loader.loadIfNeeded()
+        }
+    }
+}
+
+private struct CachedFeedImageView: View {
+    let urlString: String
+    var placeholderTint: Color = .secondary
+    var failedTint: Color = .secondary
+    var fixedHeight: CGFloat? = nil
+    var maxHeight: CGFloat? = 400
+    var placeholderHeight: CGFloat = 300
+    var cornerRadius: CGFloat = 12
+    var contentMode: ContentMode = .fit
+
+    @StateObject private var loader: RemoteImageLoader
+
+    init(
+        urlString: String,
+        placeholderTint: Color = .secondary,
+        failedTint: Color = .secondary,
+        fixedHeight: CGFloat? = nil,
+        maxHeight: CGFloat? = 400,
+        placeholderHeight: CGFloat = 300,
+        cornerRadius: CGFloat = 12,
+        contentMode: ContentMode = .fit
+    ) {
+        self.urlString = urlString
+        self.placeholderTint = placeholderTint
+        self.failedTint = failedTint
+        self.fixedHeight = fixedHeight
+        self.maxHeight = maxHeight
+        self.placeholderHeight = placeholderHeight
+        self.cornerRadius = cornerRadius
+        self.contentMode = contentMode
+        _loader = StateObject(wrappedValue: RemoteImageLoader(urlString: urlString))
+    }
+
+    var body: some View {
+        Group {
+            if let image = loader.image {
+                sizedImage(image)
+                    .cornerRadius(cornerRadius)
+            } else if loader.didFail {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: placeholderHeight)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .font(.system(size: 40))
+                            .foregroundStyle(failedTint)
+                    }
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: placeholderHeight)
+                    .overlay {
+                        ProgressView()
+                            .tint(placeholderTint)
+                    }
+            }
+        }
+        .onAppear {
+            loader.loadIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private func sizedImage(_ image: UIImage) -> some View {
+        if let fixedHeight {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+                .frame(maxWidth: .infinity)
+                .frame(height: fixedHeight)
+                .clipped()
+        } else {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+                .ifLet(maxHeight) { view, value in
+                    view.frame(maxHeight: value)
+                }
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func ifLet<T, Content: View>(_ value: T?, transform: (Self, T) -> Content) -> some View {
+        if let value {
+            transform(self, value)
+        } else {
+            self
+        }
+    }
+}
+
+@MainActor
+private final class RemoteImageLoader: ObservableObject {
+    @Published var image: UIImage?
+    @Published var didFail = false
+
+    private let urlString: String
+    private var task: Task<Void, Never>?
+
+    private static let cache = NSCache<NSString, UIImage>()
+
+    init(urlString: String) {
+        self.urlString = urlString
+    }
+
+    deinit {
+        task?.cancel()
+    }
+
+    func loadIfNeeded() {
+        guard image == nil, !didFail else { return }
+        if let cached = Self.cache.object(forKey: urlString as NSString) {
+            image = cached
+            return
+        }
+
+        guard let url = URL(string: urlString) else {
+            didFail = true
+            return
+        }
+
+        task?.cancel()
+        task = Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard !Task.isCancelled, let uiImage = UIImage(data: data) else { return }
+                Self.cache.setObject(uiImage, forKey: self.urlString as NSString)
+                self.image = uiImage
+            } catch {
+                if !Task.isCancelled {
+                    self.didFail = true
+                }
+            }
+        }
+    }
+
+    static func prefetch(urls: [String]) {
+        let unique = Array(Set(urls)).prefix(16)
+        for urlString in unique {
+            if cache.object(forKey: urlString as NSString) != nil { continue }
+            guard let url = URL(string: urlString) else { continue }
+            Task.detached(priority: .utility) {
+                do {
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    guard let image = UIImage(data: data) else { return }
+                    await MainActor.run {
+                        cache.setObject(image, forKey: urlString as NSString)
+                    }
+                } catch {
+                    return
                 }
             }
         }

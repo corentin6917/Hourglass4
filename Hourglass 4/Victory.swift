@@ -43,6 +43,8 @@ struct Victory: Identifiable, Codable {
         goalEmoji: String,
         photoURL: String,
         createdAt: Date = Date(),
+        visibleAt: Date? = nil,
+        expiresAt: Date? = nil,
         boostCount: Int = 0,
         commentCount: Int = 0,
         boostedBy: [String] = []
@@ -57,24 +59,26 @@ struct Victory: Identifiable, Codable {
         self.goalEmoji = goalEmoji
         self.photoURL = photoURL
         self.createdAt = createdAt
+        if let visibleAt, let expiresAt {
+            self.visibleAt = visibleAt
+            self.expiresAt = expiresAt
+        } else {
+            var calendar = AppTimeZone.calendar
+            calendar.timeZone = TimeZone.current
 
-        var calendar = AppTimeZone.calendar
-        calendar.timeZone = TimeZone.current // Utiliser le fuseau horaire local
+            var todayComponents = calendar.dateComponents([.year, .month, .day], from: createdAt)
+            todayComponents.hour = 21
+            todayComponents.minute = 0
+            todayComponents.timeZone = calendar.timeZone
+            self.visibleAt = calendar.date(from: todayComponents) ?? createdAt
 
-        // Visible à partir de 21h le jour de création
-        var todayComponents = calendar.dateComponents([.year, .month, .day], from: createdAt)
-        todayComponents.hour = 21
-        todayComponents.minute = 0
-        todayComponents.timeZone = calendar.timeZone
-        self.visibleAt = calendar.date(from: todayComponents) ?? createdAt
-
-        // Expire le lendemain à 21h (24h de visibilité)
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: createdAt) ?? createdAt
-        var tomorrowComponents = calendar.dateComponents([.year, .month, .day], from: tomorrow)
-        tomorrowComponents.hour = 21
-        tomorrowComponents.minute = 0
-        tomorrowComponents.timeZone = calendar.timeZone
-        self.expiresAt = calendar.date(from: tomorrowComponents) ?? tomorrow
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: createdAt) ?? createdAt
+            var tomorrowComponents = calendar.dateComponents([.year, .month, .day], from: tomorrow)
+            tomorrowComponents.hour = 21
+            tomorrowComponents.minute = 0
+            tomorrowComponents.timeZone = calendar.timeZone
+            self.expiresAt = calendar.date(from: tomorrowComponents) ?? tomorrow
+        }
 
         self.boostCount = boostCount
         self.commentCount = commentCount
@@ -143,18 +147,31 @@ struct Victory: Identifiable, Codable {
     static func from(document: QueryDocumentSnapshot) -> Victory? {
         let data = document.data()
 
-        guard let victoryId = data["victoryId"] as? String,
-              let userId = data["userId"] as? String,
+        guard let userId = data["userId"] as? String,
               let username = data["username"] as? String,
               let goalTitle = data["goalTitle"] as? String,
               let goalEmoji = data["goalEmoji"] as? String,
-              let photoURL = data["photoURL"] as? String,
-              let createdAtTimestamp = data["createdAt"] as? Timestamp else {
+              let photoURL = data["photoURL"] as? String else {
             return nil
         }
 
+        let victoryId = (data["victoryId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeVictoryId = (victoryId?.isEmpty == false) ? victoryId! : document.documentID
+
+        let createdAtDate: Date
+        if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+            createdAtDate = createdAtTimestamp.dateValue()
+        } else if let createdAtRawDate = data["createdAt"] as? Date {
+            createdAtDate = createdAtRawDate
+        } else {
+            return nil
+        }
+
+        let visibleAtTimestamp = data["visibleAt"] as? Timestamp
+        let expiresAtTimestamp = data["expiresAt"] as? Timestamp
+
         return Victory(
-            victoryId: victoryId,
+            victoryId: safeVictoryId,
             userId: userId,
             username: username,
             displayName: data["displayName"] as? String,
@@ -163,7 +180,9 @@ struct Victory: Identifiable, Codable {
             goalTitle: goalTitle,
             goalEmoji: goalEmoji,
             photoURL: photoURL,
-            createdAt: createdAtTimestamp.dateValue(),
+            createdAt: createdAtDate,
+            visibleAt: visibleAtTimestamp?.dateValue(),
+            expiresAt: expiresAtTimestamp?.dateValue(),
             boostCount: data["boostCount"] as? Int ?? 0,
             commentCount: data["commentCount"] as? Int ?? 0,
             boostedBy: data["boostedBy"] as? [String] ?? []

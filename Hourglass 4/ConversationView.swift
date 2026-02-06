@@ -31,44 +31,55 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header avec nom et avatar
-            conversationHeader
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.white,
+                    Color.orange.opacity(0.04)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            themedDivider
+            VStack(spacing: 0) {
+                // Header avec nom et avatar
+                conversationHeader
 
-            // Liste des messages
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(messages) { message in
-                            MessageBubble(
-                                message: message,
-                                isFromCurrentUser: message.fromUserId == currentUserId
-                            )
-                            .id(message.id)
+                themedDivider
+
+                // Liste des messages
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(messages) { message in
+                                MessageBubble(
+                                    message: message,
+                                    isFromCurrentUser: message.fromUserId == currentUserId
+                                )
+                                .id(message.id)
+                            }
+                        }
+                        .padding()
+                    }
+                    .onChange(of: messages.count) { _, _ in
+                        // Scroll vers le dernier message quand un nouveau arrive
+                        if let lastMessage = messages.last {
+                            withAnimation {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
                         }
                     }
-                    .padding()
                 }
-                .onChange(of: messages.count) { _, _ in
-                    // Scroll vers le dernier message quand un nouveau arrive
-                    if let lastMessage = messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
+
+                themedDivider
+
+                // Barre de saisie
+                messageInputBar
             }
-
-            themedDivider
-
-            // Barre de saisie
-            messageInputBar
         }
         .navigationTitle(friendDisplayName)
         .navigationBarTitleDisplayMode(.inline)
-        .background(Theme.Colors.background)
         .onAppear {
             Task {
                 await loadMessages()
@@ -111,7 +122,7 @@ struct ConversationView: View {
             Spacer()
         }
         .padding(Theme.Spacing.medium)
-        .background(Theme.Colors.background)
+        .background(Color.white.opacity(0.9))
     }
 
     private var messageInputBar: some View {
@@ -149,7 +160,7 @@ struct ConversationView: View {
 
     private var themedDivider: some View {
         Rectangle()
-            .fill(Theme.Colors.divider)
+            .fill(Color.orange.opacity(0.08))
             .frame(height: 1)
     }
 

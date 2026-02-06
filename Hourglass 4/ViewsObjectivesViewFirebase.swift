@@ -123,7 +123,7 @@ struct ObjectivesViewFirebase: View {
                                     VStack(alignment: .leading, spacing: 16) {
                                         HStack(spacing: 10) {
                                             Text("En cours")
-                                                .font(.system(size: 18, weight: .semibold))
+                                                .font(.system(size: 16, weight: .semibold))
                                                 .foregroundStyle(.primary)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
@@ -242,6 +242,7 @@ struct ObjectivesViewFirebase: View {
                 dailyBudget = await goalManager.getDailyGrainsBudget()
             }
         }
+        .dynamicTypeSize(.xSmall)
     }
 }
 

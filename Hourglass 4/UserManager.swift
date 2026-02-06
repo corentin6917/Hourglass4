@@ -25,6 +25,7 @@ struct UserData: Identifiable, Codable {
     var id: String { uid } // Conformité à Identifiable
     let uid: String
     let email: String
+    var phoneE164: String?
     let username: String
     var displayName: String?
     var gender: Gender
@@ -39,6 +40,7 @@ struct UserData: Identifiable, Codable {
     init(
         uid: String,
         email: String,
+        phoneE164: String? = nil,
         username: String,
         displayName: String?,
         gender: Gender,
@@ -52,6 +54,7 @@ struct UserData: Identifiable, Codable {
     ) {
         self.uid = uid
         self.email = email
+        self.phoneE164 = phoneE164
         self.username = username
         self.displayName = displayName
         self.gender = gender
@@ -68,6 +71,7 @@ struct UserData: Identifiable, Codable {
         var dict: [String: Any] = [
             "uid": uid,
             "email": email,
+            "phone_e164": phoneE164 ?? "",
             "username": username,
             "displayName": displayName ?? "",
             "gender": gender.rawValue,
@@ -152,10 +156,12 @@ class UserManager: ObservableObject {
     func createUserProfile(uid: String, email: String, username: String, displayName: String?, gender: Gender, birthDate: Date) async throws {
         let normalizedUsername = username.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedEmail = email.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPhone = Self.normalizeToE164(Auth.auth().currentUser?.phoneNumber)
 
         let userData: [String: Any] = [
             "uid": uid,
             "email": normalizedEmail, // Email en minuscules pour la recherche
+            "phone_e164": normalizedPhone ?? "",
             "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
             "username_lower": normalizedUsername, // Pour la recherche insensible à la casse
             "displayName": displayName ?? "",
@@ -182,6 +188,7 @@ class UserManager: ObservableObject {
 
         let uid = data["uid"] as? String ?? uid
         let email = data["email"] as? String ?? ""
+        let phoneE164Raw = data["phone_e164"] as? String
         let username = data["username"] as? String ?? ""
         let displayName = data["displayName"] as? String
         let genderString = data["gender"] as? String ?? Gender.notSpecified.rawValue
@@ -197,6 +204,7 @@ class UserManager: ObservableObject {
         return UserData(
             uid: uid,
             email: email,
+            phoneE164: (phoneE164Raw?.isEmpty == false) ? phoneE164Raw : nil,
             username: username,
             displayName: displayName,
             gender: gender,
@@ -272,6 +280,12 @@ extension UserManager {
                     }
                 }
 
+                let currentPhone = Self.normalizeToE164(user.phoneNumber)
+                let storedPhone = Self.normalizeToE164(data["phone_e164"] as? String)
+                if currentPhone != storedPhone {
+                    updates["phone_e164"] = currentPhone ?? ""
+                }
+
                 if !updates.isEmpty {
                     try await docRef.updateData(updates)
                 }
@@ -331,5 +345,23 @@ extension UserManager {
             let value = doc.data()["grainValue"] as? Double ?? 0.0
             return partial + value
         }
+    }
+
+    static func normalizeToE164(_ raw: String?) -> String? {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+
+        value = value.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+        if value.hasPrefix("00") {
+            value = "+" + value.dropFirst(2)
+        }
+        if value.hasPrefix("+") {
+            let digits = value.dropFirst().filter(\.isNumber)
+            guard digits.count >= 8 else { return nil }
+            return "+" + digits
+        }
+
+        return nil
     }
 }

@@ -311,6 +311,8 @@ exports.sendNotificationPush = onDocumentCreated(
       body = `${fromName} a commenté ta victoire`;
     } else if (type === "boost") {
       body = `${fromName} t'a donné un grain`;
+    } else if (type === "friend_request") {
+      body = `${fromName} veut être ton complice`;
     }
 
     const message = {
@@ -319,6 +321,7 @@ exports.sendNotificationPush = onDocumentCreated(
       data: {
         type: String(type),
         victoryId: String(data.victoryId || ""),
+        requestId: String(data.requestId || ""),
       },
     };
 

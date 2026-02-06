@@ -14,6 +14,7 @@
 		1FFE0CB02ED893E0009E1C8E /* LoginView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */; };
 		1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */; };
 		457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */; };
+		7D98E78A3142464AA8838ED4 /* GroupChatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2F2F3924964AEBB6176FCB /* GroupChatManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		37415482816CCB9A5273DF8A /* Pods-Hourglass 4.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hourglass 4.release.xcconfig"; path = "Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4.release.xcconfig"; sourceTree = "<group>"; };
 		744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindFriendViewModelV2.swift; sourceTree = "<group>"; };
+		FD2F2F3924964AEBB6176FCB /* GroupChatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupChatManager.swift; sourceTree = "<group>"; };
 		94F56D34482AC5B28045CC03 /* Pods-Hourglass 4.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hourglass 4.debug.xcconfig"; path = "Target Support Files/Pods-Hourglass 4/Pods-Hourglass 4.debug.xcconfig"; sourceTree = "<group>"; };
 		FA4FE37CD3447901D6DCA111 /* Pods_Hourglass_4.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Hourglass_4.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -56,6 +58,7 @@
 				1FFE0CAF2ED893E0009E1C8E /* LoginView 2.swift */,
 				1FFE0CB12ED89ADB009E1C8E /* SignUpView.swift */,
 				744E9B3FA25E4C96A28110A8 /* FindFriendViewModelV2.swift */,
+				FD2F2F3924964AEBB6176FCB /* GroupChatManager.swift */,
 				BC5AA12235FB60151534C66A /* Pods */,
 				504C9F003774FBE9BC336736 /* Frameworks */,
 			);
@@ -204,6 +207,7 @@
 				1FFE0CB22ED89ADB009E1C8E /* SignUpView.swift in Sources */,
 				1F6BF0432EC71F0400223B67 /* ViewsSimpleRealisticHourglass.swift in Sources */,
 				457ED31A49A2441A857DEBEE /* FindFriendViewModelV2.swift in Sources */,
+				7D98E78A3142464AA8838ED4 /* GroupChatManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -344,6 +348,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Hourglass a besoin d'accès à la caméra pour valider tes objectifs avec une photo.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Hourglass utilise tes contacts pour te suggérer des amis déjà inscrits.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Hourglass a besoin d'accès à tes photos pour définir ta photo de profil.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -357,7 +362,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -404,6 +409,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Hourglass a besoin d'accès à la caméra pour valider tes objectifs avec une photo.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Hourglass utilise tes contacts pour te suggérer des amis déjà inscrits.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Hourglass a besoin d'accès à tes photos pour définir ta photo de profil.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -417,7 +423,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

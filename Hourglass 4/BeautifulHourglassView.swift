@@ -15,6 +15,7 @@ struct BeautifulHourglassView: View {
     @State private var fallingParticles: [FallingParticle] = []
     @State private var glowPulse: Double = 1.0
     @State private var rotationEffect: Double = 0
+    @State private var particleTimer: Timer?
 
     var body: some View {
         GeometryReader { geometry in
@@ -45,6 +46,10 @@ struct BeautifulHourglassView: View {
         }
         .onAppear {
             startAnimations()
+        }
+        .onDisappear {
+            particleTimer?.invalidate()
+            particleTimer = nil
         }
     }
 
@@ -279,7 +284,8 @@ struct BeautifulHourglassView: View {
         }
 
         // Particules tombantes
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+        particleTimer?.invalidate()
+        particleTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             if progress < 1.0 {
                 addFallingParticle()
             }

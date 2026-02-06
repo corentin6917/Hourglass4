@@ -29,6 +29,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 if let token = Messaging.messaging().fcmToken {
                     try? await UserManager.shared.updateFcmToken(token)
                 }
+                FriendManager.shared.startFriendRequestsListener()
             }
         }
         // Rafraîchir le widget après l'initialisation Firebase
@@ -46,6 +47,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let userInfo = notification.request.content.userInfo
+        if let type = userInfo["type"] as? String, type == "friend_request" {
+            completionHandler([.banner, .sound, .badge])
+        } else {
+            completionHandler([])
+        }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,

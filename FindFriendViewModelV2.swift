@@ -21,6 +21,7 @@ class FindFriendViewModelV2: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
+    @Published var pendingRelationUserIds: Set<String> = []
 
     private var currentUserId: String? {
         Auth.auth().currentUser?.uid
@@ -68,6 +69,7 @@ class FindFriendViewModelV2: ObservableObject {
 
         do {
             try await FriendManager.shared.sendFriendRequest(to: user.uid)
+            pendingRelationUserIds.insert(user.uid)
 
             isSendingRequest = false
             successMessage = "Demande d'ami envoyée à @\(user.username) !"
@@ -80,6 +82,72 @@ class FindFriendViewModelV2: ObservableObject {
         } catch {
             isSendingRequest = false
             errorMessage = "Erreur: \(error.localizedDescription)"
+        }
+    }
+
+    /// Annuler une demande d'ami envoyée
+    func cancelFriendRequest(to user: UserData) async {
+        guard currentUserId != nil else {
+            errorMessage = "Vous devez être connecté"
+            return
+        }
+
+        isSendingRequest = true
+        errorMessage = nil
+        successMessage = nil
+
+        do {
+            try await FriendManager.shared.cancelFriendRequest(to: user.uid)
+            pendingRelationUserIds.remove(user.uid)
+            isSendingRequest = false
+            successMessage = "Demande annulée."
+            Task {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                successMessage = nil
+            }
+        } catch {
+            isSendingRequest = false
+            errorMessage = "Erreur: \(error.localizedDescription)"
+        }
+    }
+
+    func isRequestPending(for userId: String) -> Bool {
+        pendingRelationUserIds.contains(userId)
+    }
+
+    func refreshPendingRelationUserIds() async {
+        guard let currentUserId = currentUserId else {
+            pendingRelationUserIds = []
+            return
+        }
+
+        do {
+            var ids = Set<String>()
+            let db = Firestore.firestore()
+
+            let outgoing = try await db.collection("friendRequests")
+                .whereField("fromUserId", isEqualTo: currentUserId)
+                .whereField("status", isEqualTo: FriendRequestStatus.pending.rawValue)
+                .getDocuments()
+            for doc in outgoing.documents {
+                if let id = doc.data()["toUserId"] as? String {
+                    ids.insert(id)
+                }
+            }
+
+            let incoming = try await db.collection("friendRequests")
+                .whereField("toUserId", isEqualTo: currentUserId)
+                .whereField("status", isEqualTo: FriendRequestStatus.pending.rawValue)
+                .getDocuments()
+            for doc in incoming.documents {
+                if let id = doc.data()["fromUserId"] as? String {
+                    ids.insert(id)
+                }
+            }
+
+            pendingRelationUserIds = ids
+        } catch {
+            pendingRelationUserIds = []
         }
     }
 

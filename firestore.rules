@@ -70,6 +70,34 @@ service cloud.firestore {
                       resource.data.toUserId == request.auth.uid);
     }
 
+    // Collection groupChats - Conversations de groupe
+    match /groupChats/{groupId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isAuthenticated()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds
+        && request.auth.uid in request.resource.data.adminIds;
+
+      allow update: if isAuthenticated() && (
+        request.auth.uid in resource.data.adminIds ||
+        (
+          request.auth.uid in resource.data.memberIds &&
+          request.resource.data.adminIds == resource.data.adminIds &&
+          request.resource.data.memberIds == resource.data.memberIds &&
+          request.resource.data.createdBy == resource.data.createdBy
+        )
+      );
+
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.memberIds;
+        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/groupChats/$(groupId)).data.memberIds;
+        allow update, delete: if false;
+      }
+    }
+
     // Collection notifications - Mentions et alertes
     match /notifications/{notificationId} {
       allow read: if isAuthenticated();

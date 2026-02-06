@@ -207,20 +207,11 @@ class VictoryManager: ObservableObject {
             isLoading = true
         }
 
-        print("=" + String(repeating: "=", count: 60))
-        print("🔍 VictoryManager - CHARGEMENT DU FIL DES VICTOIRES")
-        print("🔍 VictoryManager - friendIds: \(friendIds)")
-        print("🔍 VictoryManager - friendIds.count: \(friendIds.count)")
-        print("=" + String(repeating: "=", count: 60))
-
         // Récupérer les victoires des amis (fil quotidien 21h-21h)
         let now = Date()
-        print("🔍 VictoryManager - Date actuelle: \(now)")
-        print("✅ MODE PRODUCTION: Seules les victoires visibles (21h-21h) sont affichées")
 
         // Si pas d'amis, on ne peut pas utiliser la query "in" avec un tableau vide
         if friendIds.isEmpty {
-            print("⚠️ VictoryManager - Aucun ami trouvé, impossible de charger les victoires")
             await MainActor.run {
                 self.victories = []
                 self.isLoading = false
@@ -228,35 +219,31 @@ class VictoryManager: ObservableObject {
             return
         }
 
-        // Récupérer toutes les victoires récentes des amis (dernières 48h pour couvrir 2 cycles de 24h)
+        // Récupérer les victoires des amis par batch de 10 IDs (limite Firestore pour "in")
+        // puis filtrer côté client pour éviter les problèmes d'index.
         let twoDaysAgo = AppTimeZone.calendar.date(byAdding: .day, value: -2, to: now) ?? now
+        var documents: [QueryDocumentSnapshot] = []
 
-        let snapshot = try await db.collection("victories")
-            .whereField("userId", in: friendIds)
-            .whereField("createdAt", isGreaterThan: Timestamp(date: twoDaysAgo))
-            .order(by: "createdAt", descending: true)
-            .limit(to: 100)
-            .getDocuments()
+        for batch in friendIds.chunked(into: 10) {
+            let snapshot = try await db.collection("victories")
+                .whereField("userId", in: batch)
+                .limit(to: 80)
+                .getDocuments()
+            documents.append(contentsOf: snapshot.documents)
+        }
 
-        print("🔍 VictoryManager - Documents trouvés dans Firestore: \(snapshot.documents.count)")
-
-        // Parser et filtrer les victoires visibles (entre visibleAt et expiresAt)
-        let allVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
+        // Parser et filtrer les victoires visibles + bornes temporelles récentes
+        let allVictories = documents.compactMap { Victory.from(document: $0) }
+            .filter { $0.createdAt >= twoDaysAgo }
+            .sorted { $0.createdAt > $1.createdAt }
 
         // Filtrer uniquement les victoires actuellement visibles
         let loadedVictories = allVictories.filter { victory in
-            let isCurrentlyVisible = now >= victory.visibleAt && now <= victory.expiresAt
-            if !isCurrentlyVisible {
-                print("   ⏭️ Victoire non visible: \(victory.goalEmoji) \(victory.goalTitle)")
-                print("      Visible à: \(victory.visibleAt), Expire: \(victory.expiresAt), Maintenant: \(now)")
-            }
-            return isCurrentlyVisible
+            isVictoryVisibleInFriendsFeed(victory, now: now)
         }
 
-        print("🔍 VictoryManager - Victoires parsées avec succès: \(loadedVictories.count)")
-
         await MainActor.run {
-            self.victories = loadedVictories
+            self.victories = Array(loadedVictories.prefix(80))
             self.isLoading = false
         }
     }
@@ -279,16 +266,39 @@ class VictoryManager: ObservableObject {
         let now = Date()
         let twoDaysAgo = AppTimeZone.calendar.date(byAdding: .day, value: -2, to: now) ?? now
 
-        let snapshot = try await db.collection("victories")
-            .whereField("userId", isEqualTo: currentUserId)
-            .whereField("createdAt", isGreaterThan: Timestamp(date: twoDaysAgo))
-            .order(by: "createdAt", descending: true)
-            .limit(to: 100)
-            .getDocuments()
+        // Requête optimisée (peut nécessiter un index composite selon le projet Firestore).
+        // Si elle échoue, on retombe sur une requête large userId-only pour rester robuste.
+        let allVictories: [Victory]
+        do {
+            let snapshot = try await db.collection("victories")
+                .whereField("userId", isEqualTo: currentUserId)
+                .whereField("createdAt", isGreaterThan: Timestamp(date: twoDaysAgo))
+                .order(by: "createdAt", descending: true)
+                .limit(to: 80)
+                .getDocuments()
+            allVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
+        } catch {
+            let fallbackSnapshot = try await db.collection("victories")
+                .whereField("userId", isEqualTo: currentUserId)
+                .limit(to: 300)
+                .getDocuments()
+            allVictories = fallbackSnapshot.documents.compactMap { Victory.from(document: $0) }
+                .filter { $0.createdAt >= twoDaysAgo }
+                .sorted { $0.createdAt > $1.createdAt }
+        }
 
-        let allVictories = snapshot.documents.compactMap { Victory.from(document: $0) }
-        let activeVictories = allVictories.filter { victory in
-            now >= victory.visibleAt && now <= victory.expiresAt
+        // Pour "Mes victoires", on garde une logique plus tolérante:
+        // si une victoire n'est pas expirée, elle doit rester visible côté auteur.
+        var activeVictories = allVictories.filter { victory in
+            isVictoryVisibleForOwner(victory, now: now)
+        }
+
+        // Fallback: si la collection victories est vide/incomplète, reconstruire depuis goals validés.
+        if activeVictories.isEmpty {
+            let fallback = try await loadMyVictoriesFromGoalsFallback(since: twoDaysAgo)
+            activeVictories = fallback.filter { victory in
+                isVictoryVisibleForOwner(victory, now: now)
+            }
         }
 
         await MainActor.run {
@@ -415,13 +425,102 @@ class VictoryManager: ObservableObject {
         return newSpent
     }
 
-    private static func dayKey(for date: Date) -> String {
+    static func dayKey(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.calendar = AppTimeZone.calendar
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = AppTimeZone.current
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+
+    private func isVictoryVisibleInFriendsFeed(_ victory: Victory, now: Date) -> Bool {
+        let calendar = AppTimeZone.calendar
+        var dayComponents = calendar.dateComponents([.year, .month, .day], from: victory.createdAt)
+        dayComponents.hour = 21
+        dayComponents.minute = 0
+
+        // Fenêtre canonique du feed: 21h -> 21h (+24h), basée sur createdAt.
+        // Plus fiable que les champs visibles/expire lorsque d'anciens documents sont incohérents.
+        let effectiveVisibleAt = calendar.date(from: dayComponents) ?? victory.createdAt
+        let effectiveExpiresAt = effectiveVisibleAt.addingTimeInterval(24 * 60 * 60)
+
+        return now >= effectiveVisibleAt && now <= effectiveExpiresAt
+    }
+
+    private func isVictoryVisibleForOwner(_ victory: Victory, now: Date) -> Bool {
+        let calendar = AppTimeZone.calendar
+        var dayComponents = calendar.dateComponents([.year, .month, .day], from: victory.createdAt)
+        dayComponents.hour = 21
+        dayComponents.minute = 0
+
+        let fallbackVisibleAt = calendar.date(from: dayComponents) ?? victory.createdAt
+        let fallbackExpiresAt = fallbackVisibleAt.addingTimeInterval(24 * 60 * 60)
+        let effectiveExpiresAt = max(victory.expiresAt, fallbackExpiresAt)
+
+        return now <= effectiveExpiresAt
+    }
+
+    private func loadMyVictoriesFromGoalsFallback(since: Date) async throws -> [Victory] {
+        guard let currentUser = Auth.auth().currentUser else { return [] }
+
+        let profile = try? await UserManager.shared.getUserProfile(uid: currentUser.uid)
+        let username = profile?.username ?? "user"
+        let displayName = profile?.displayName
+        let profileImageURL = profile?.profileImageURL
+
+        // Priorité: les objectifs réellement validés récemment (completedAt).
+        // Si cette requête échoue (index manquant), on retombe sur une requête large.
+        let snapshot: QuerySnapshot
+        do {
+            snapshot = try await db.collection("goals")
+                .whereField("userId", isEqualTo: currentUser.uid)
+                .whereField("completedAt", isGreaterThanOrEqualTo: Timestamp(date: since))
+                .limit(to: 1000)
+                .getDocuments()
+        } catch {
+            snapshot = try await db.collection("goals")
+                .whereField("userId", isEqualTo: currentUser.uid)
+                .limit(to: 1500)
+                .getDocuments()
+        }
+
+        let reconstructed: [Victory] = snapshot.documents.compactMap { doc in
+            let data = doc.data()
+
+            let status = data["status"] as? String ?? ""
+            guard status == GoalStatus.completed.rawValue else { return nil }
+
+            let photoURL = (data["photoURL"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !photoURL.isEmpty else { return nil }
+
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date.distantPast
+            let completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
+            let referenceDate = completedAt ?? createdAt
+            guard referenceDate >= since else { return nil }
+
+            let title = (data["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let safeTitle = (title?.isEmpty == false) ? title! : "Objectif validé"
+
+            let categoryRaw = data["category"] as? String ?? ""
+            let emoji = GoalCategory(rawValue: categoryRaw)?.emoji ?? "✅"
+            let victoryId = (data["victoryId"] as? String) ?? "goal-\(doc.documentID)"
+
+            return Victory(
+                victoryId: victoryId,
+                userId: currentUser.uid,
+                username: username,
+                displayName: displayName,
+                profileImageURL: profileImageURL,
+                comment: nil,
+                goalTitle: safeTitle,
+                goalEmoji: emoji,
+                photoURL: photoURL,
+                createdAt: referenceDate
+            )
+        }
+
+        return reconstructed.sorted { $0.createdAt > $1.createdAt }
     }
 
     // MARK: - Commenter une victoire
@@ -664,5 +763,14 @@ class VictoryManager: ObservableObject {
         try await userRef.setData([
             "pinnedVictoryIds": FieldValue.arrayRemove([victoryId])
         ], merge: true)
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0, !isEmpty else { return [] }
+        return stride(from: 0, to: count, by: size).map { start in
+            Array(self[start..<Swift.min(start + size, count)])
+        }
     }
 }

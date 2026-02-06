@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
+import Contacts
 
 struct FindFriendView: View {
     @StateObject private var viewModel = FindFriendViewModelV2()
     @Environment(\.dismiss) private var dismiss
     @State private var searchTask: Task<Void, Never>?
     @State private var hasSearched = false
+    @State private var contactSuggestions: [UserData] = []
+    @State private var isLoadingContactSuggestions = false
+    @State private var contactsPermissionStatus = CNContactStore.authorizationStatus(for: .contacts)
 
     var body: some View {
         NavigationStack {
@@ -19,6 +23,7 @@ struct FindFriendView: View {
                 VStack(spacing: 16) {
                     // Barre de recherche
                     searchBar
+                    contactSuggestionsSection
 
                     // Résultat de recherche
                     if viewModel.isSearching {
@@ -56,6 +61,13 @@ struct FindFriendView: View {
                     Button("Fermer") { dismiss() }
                 }
             }
+            .onAppear {
+                contactsPermissionStatus = CNContactStore.authorizationStatus(for: .contacts)
+                Task { await viewModel.refreshPendingRelationUserIds() }
+                if contactsPermissionStatus == .authorized {
+                    Task { await loadContactSuggestions() }
+                }
+            }
             .onDisappear {
                 searchTask?.cancel()
             }
@@ -69,7 +81,7 @@ struct FindFriendView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
 
-            TextField("Username ou email", text: $viewModel.searchQuery)
+            TextField("Username", text: $viewModel.searchQuery)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .onSubmit {
@@ -113,6 +125,122 @@ struct FindFriendView: View {
         .padding()
     }
 
+    private var contactSuggestionsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Suggestions via tes contacts", systemImage: "person.2.badge.gearshape.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(.horizontal)
+
+            if contactsPermissionStatus == .authorized {
+                if isLoadingContactSuggestions {
+                    ProgressView("Recherche des contacts...")
+                        .font(.caption)
+                        .padding(.horizontal)
+                } else if contactSuggestions.isEmpty {
+                    Text("Aucun contact inscrit trouvé pour le moment.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(contactSuggestions.prefix(6)) { user in
+                            contactSuggestionRow(user)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            } else if contactsPermissionStatus == .denied || contactsPermissionStatus == .restricted {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Accès contacts refusé")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                    Text("Active les contacts dans Réglages pour voir les amis déjà présents sur Hourglass.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal)
+            } else {
+                Button {
+                    Task { await requestContactsAndLoad() }
+                } label: {
+                    Label("Autoriser les contacts", systemImage: "person.crop.circle.badge.plus")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private func contactSuggestionRow(_ user: UserData) -> some View {
+        let isPending = viewModel.isRequestPending(for: user.uid)
+
+        return HStack(spacing: 12) {
+            Circle()
+                .fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 34, height: 34)
+                .overlay {
+                    Text(user.username.prefix(1).uppercased())
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                if let displayName = user.displayName, !displayName.isEmpty {
+                    Text(displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+                Text("@\(user.username)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                Task {
+                    if isPending {
+                        await viewModel.cancelFriendRequest(to: user)
+                    } else {
+                        await viewModel.sendFriendRequest(to: user)
+                    }
+                }
+            } label: {
+                Label(
+                    isPending ? "En attente" : "Ajouter",
+                    systemImage: isPending ? "clock.fill" : "person.badge.plus"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isPending ? .orange : .white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background {
+                    if isPending {
+                        Capsule()
+                            .stroke(Color.orange.opacity(0.6), lineWidth: 1)
+                    } else {
+                        Capsule()
+                            .fill(Color.orange)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isSendingRequest)
+        }
+        .padding(10)
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemBackground))
+        }
+    }
+
     private func triggerSearch() {
         searchTask?.cancel()
         let trimmedQuery = viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -129,64 +257,121 @@ struct FindFriendView: View {
         }
     }
 
+    private func requestContactsAndLoad() async {
+        let store = CNContactStore()
+        let granted = await withCheckedContinuation { continuation in
+            store.requestAccess(for: .contacts) { ok, _ in
+                continuation.resume(returning: ok)
+            }
+        }
+        await MainActor.run {
+            contactsPermissionStatus = CNContactStore.authorizationStatus(for: .contacts)
+        }
+        if granted {
+            await loadContactSuggestions()
+        }
+    }
+
+    private func loadContactSuggestions() async {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { return }
+        await MainActor.run {
+            isLoadingContactSuggestions = true
+        }
+
+        let phoneNumbers = ContactPhoneReader.readNormalizedPhoneNumbers()
+
+        do {
+            let users = try await FriendManager.shared.suggestUsersByPhoneNumbers(phoneNumbers)
+            await MainActor.run {
+                contactSuggestions = users
+                isLoadingContactSuggestions = false
+            }
+        } catch {
+            await MainActor.run {
+                isLoadingContactSuggestions = false
+            }
+        }
+    }
+
     // MARK: - User Result Card
 
     private func userResultCard(_ user: UserData) -> some View {
-        VStack(spacing: 12) {
-            // Avatar
-            Circle()
-                .fill(LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 80, height: 80)
-                .overlay {
-                    Text(user.username.prefix(1).uppercased())
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                }
+        let isPending = viewModel.isRequestPending(for: user.uid)
 
-            // Infos
-            VStack(spacing: 4) {
-                let displayName = user.displayName ?? ""
-                if !displayName.isEmpty {
+        return HStack(spacing: 14) {
+            if let imageURL = user.profileImageURL, !imageURL.isEmpty {
+                ProfileImageView(
+                    imageURL: imageURL,
+                    username: user.username,
+                    size: 46,
+                    gradientColors: [.orange, .orange.opacity(0.6)]
+                )
+            } else {
+                Circle()
+                    .fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 46, height: 46)
+                    .overlay {
+                        Text(user.username.prefix(1).uppercased())
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let displayName = user.displayName, !displayName.isEmpty {
                     Text(displayName)
-                        .font(.title3)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
+                        .lineLimit(1)
                 }
-
                 Text("@\(user.username)")
-                    .font(.subheadline)
-                    .foregroundStyle(.purple)
-
-                Text(user.email)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            // Bouton d'ajout
+            Spacer()
+
             Button {
                 Task {
-                    await viewModel.sendFriendRequest(to: user)
+                    if isPending {
+                        await viewModel.cancelFriendRequest(to: user)
+                    } else {
+                        await viewModel.sendFriendRequest(to: user)
+                    }
                 }
             } label: {
                 if viewModel.isSendingRequest {
                     ProgressView()
                         .progressViewStyle(.circular)
                 } else {
-                    Label("Ajouter comme ami", systemImage: "person.badge.plus.fill")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                    Label(
+                        isPending ? "En attente" : "Ajouter",
+                        systemImage: isPending ? "clock.fill" : "person.badge.plus.fill"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isPending ? .orange : .white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background {
+                        if isPending {
+                            Capsule()
+                                .stroke(Color.orange.opacity(0.6), lineWidth: 1)
+                        } else {
+                            Capsule()
+                                .fill(Color.orange)
+                        }
+                    }
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
             .disabled(viewModel.isSendingRequest)
-            .padding(.top, 8)
         }
-        .padding()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .background {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 10)
+            RoundedRectangle(cornerRadius: 15)
+                .fill(Color.orange.opacity(0.06))
         }
         .padding()
     }
@@ -197,11 +382,11 @@ struct FindFriendView: View {
         VStack(spacing: 16) {
             Image(systemName: "person.2.fill")
                 .font(.system(size: 60))
-                .foregroundStyle(.blue.opacity(0.5))
+                .foregroundStyle(.orange.opacity(0.6))
             Text("Trouve tes amis")
                 .font(.title3)
                 .fontWeight(.medium)
-            Text("Recherche par username ou email")
+            Text("Recherche par username")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -293,6 +478,62 @@ struct PendingRequestCardView: View {
                 .fill(Color(.secondarySystemBackground))
                 .shadow(color: .black.opacity(0.05), radius: 5)
         }
+    }
+}
+
+private enum ContactPhoneReader {
+    static func readNormalizedPhoneNumbers(limit: Int = 500) -> [String] {
+        let store = CNContactStore()
+        let keys: [CNKeyDescriptor] = [CNContactPhoneNumbersKey as CNKeyDescriptor]
+        let request = CNContactFetchRequest(keysToFetch: keys)
+
+        var numbers = Set<String>()
+        do {
+            try store.enumerateContacts(with: request) { contact, stop in
+                for phone in contact.phoneNumbers {
+                    if let normalized = normalizePhone(phone.value.stringValue) {
+                        numbers.insert(normalized)
+                        if numbers.count >= limit {
+                            stop.pointee = true
+                            break
+                        }
+                    }
+                }
+            }
+        } catch {
+            return []
+        }
+
+        return Array(numbers)
+    }
+
+    private static func normalizePhone(_ raw: String) -> String? {
+        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.isEmpty { return nil }
+
+        value = value.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+        if value.hasPrefix("00") {
+            value = "+" + value.dropFirst(2)
+        }
+
+        if value.hasPrefix("+") {
+            let digits = value.dropFirst().filter(\.isNumber)
+            guard digits.count >= 8 else { return nil }
+            return "+" + digits
+        }
+
+        let digits = value.filter(\.isNumber)
+        guard digits.count >= 9 else { return nil }
+
+        let region = Locale.current.regionCode ?? "FR"
+        if region == "FR", digits.hasPrefix("0"), digits.count == 10 {
+            return "+33" + digits.dropFirst()
+        }
+        if region == "US", digits.count == 10 {
+            return "+1" + digits
+        }
+
+        return nil
     }
 }
 

@@ -9,11 +9,21 @@ import Foundation
 import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import UserNotifications
 
 enum FriendRequestStatus: String, Codable {
     case pending = "pending"
     case accepted = "accepted"
     case rejected = "rejected"
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0, !isEmpty else { return [] }
+        return stride(from: 0, to: count, by: size).map { start in
+            Array(self[start..<Swift.min(start + size, count)])
+        }
+    }
 }
 
 struct FriendRequest: Identifiable, Codable {
@@ -48,6 +58,9 @@ struct Friendship: Identifiable, Codable {
 class FriendManager: ObservableObject {
     static let shared = FriendManager()
     private let db = Firestore.firestore()
+    private var friendRequestsListener: ListenerRegistration?
+    private var hasLoadedInitialFriendRequests = false
+    private var notifiedRequestIds = Set<String>()
 
     @Published var friends: [UserData] = []
 
@@ -55,7 +68,7 @@ class FriendManager: ObservableObject {
 
     // MARK: - Recherche d'utilisateurs
 
-    /// Recherche des utilisateurs par nom d'utilisateur ou email (correspondance exacte, insensible à la casse)
+    /// Recherche des utilisateurs par nom d'utilisateur (insensible à la casse)
     func searchUsers(query: String) async throws -> [UserData] {
         let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -63,58 +76,63 @@ class FriendManager: ObservableObject {
             return []
         }
 
+        let currentUserId = Auth.auth().currentUser?.uid
         var users: [UserData] = []
         var userIds = Set<String>()
 
-        // Recherche 1 : Par nom d'utilisateur (username_lower) en recherche préfixe
+        // 1) Prefixe rapide (comportement actuel)
         let end = normalizedQuery + "\u{f8ff}"
         let usernameSnapshot = try await db.collection("users")
             .whereField("username_lower", isGreaterThanOrEqualTo: normalizedQuery)
             .whereField("username_lower", isLessThan: end)
-            .limit(to: 10)
+            .limit(to: 20)
             .getDocuments()
 
         for document in usernameSnapshot.documents {
             let data = document.data()
             let uid = data["uid"] as? String ?? document.documentID
-
-            // Ne pas inclure l'utilisateur actuel
-            if uid == Auth.auth().currentUser?.uid { continue }
+            if uid == currentUserId { continue }
             if userIds.contains(uid) { continue }
+            guard let user = parseUserData(from: data, uid: uid) else { continue }
             userIds.insert(uid)
+            users.append(user)
+        }
 
-            if let user = parseUserData(from: data, uid: uid) {
+        // 2) Fallback "contains" (username + displayName), pour des cas comme "dupont" dans "jean.dupont"
+        // On limite la fenêtre pour éviter des lectures trop lourdes.
+        if users.count < 20 {
+            let broadSnapshot = try await db.collection("users")
+                .limit(to: 400)
+                .getDocuments()
+
+            for document in broadSnapshot.documents {
+                let data = document.data()
+                let uid = data["uid"] as? String ?? document.documentID
+                if uid == currentUserId { continue }
+                if userIds.contains(uid) { continue }
+
+                let usernameLower = (data["username_lower"] as? String) ??
+                    ((data["username"] as? String)?.lowercased() ?? "")
+                let displayNameLower = (data["displayName"] as? String)?.lowercased() ?? ""
+
+                let matches = usernameLower.contains(normalizedQuery) || displayNameLower.contains(normalizedQuery)
+                if !matches { continue }
+
+                guard let user = parseUserData(from: data, uid: uid) else { continue }
+                userIds.insert(uid)
                 users.append(user)
+
+                if users.count >= 20 { break }
             }
         }
 
-        // Recherche 2 : Par email (en minuscules)
-        let emailLower = normalizedQuery
-        let emailSnapshot = try await db.collection("users")
-            .whereField("email", isEqualTo: emailLower)
-            .limit(to: 5)
-            .getDocuments()
-
-        for document in emailSnapshot.documents {
-            let data = document.data()
-            let uid = data["uid"] as? String ?? document.documentID
-
-            // Ne pas inclure l'utilisateur actuel
-            if uid == Auth.auth().currentUser?.uid { continue }
-            if userIds.contains(uid) { continue }
-            userIds.insert(uid)
-
-            if let user = parseUserData(from: data, uid: uid) {
-                users.append(user)
-            }
-        }
-
-        return users
+        return users.sorted { $0.username.localizedCaseInsensitiveCompare($1.username) == .orderedAscending }
     }
 
     /// Parse les données Firestore en UserData
     private func parseUserData(from data: [String: Any], uid: String) -> UserData? {
         let email = data["email"] as? String ?? ""
+        let phoneE164 = (data["phone_e164"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let username = data["username"] as? String ?? ""
         let displayName = data["displayName"] as? String
         let genderString = data["gender"] as? String ?? Gender.notSpecified.rawValue
@@ -127,6 +145,7 @@ class FriendManager: ObservableObject {
         return UserData(
             uid: uid,
             email: email,
+            phoneE164: (phoneE164?.isEmpty == false) ? phoneE164 : nil,
             username: username,
             displayName: displayName,
             gender: gender,
@@ -135,6 +154,71 @@ class FriendManager: ObservableObject {
             profileImageURL: profileImageURL,
             isPublic: isPublic
         )
+    }
+
+    /// Suggère des utilisateurs déjà inscrits à partir d'une liste de téléphones E.164
+    func suggestUsersByPhoneNumbers(_ phoneNumbersE164: [String]) async throws -> [UserData] {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return [] }
+
+        let normalized = Array(
+            Set(phoneNumbersE164.compactMap { UserManager.normalizeToE164($0) })
+        )
+        guard !normalized.isEmpty else { return [] }
+
+        let existingFriends = Set(try await getFriends().map(\.uid))
+        let pendingIds = try await getPendingRelationUserIds()
+
+        var results: [UserData] = []
+        var seen = Set<String>()
+
+        for batch in normalized.chunked(into: 10) {
+            let snapshot = try await db.collection("users")
+                .whereField("phone_e164", in: batch)
+                .getDocuments()
+
+            for document in snapshot.documents {
+                let data = document.data()
+                let uid = data["uid"] as? String ?? document.documentID
+                if uid == currentUserId { continue }
+                if existingFriends.contains(uid) { continue }
+                if pendingIds.contains(uid) { continue }
+                if seen.contains(uid) { continue }
+
+                if let user = parseUserData(from: data, uid: uid) {
+                    results.append(user)
+                    seen.insert(uid)
+                }
+            }
+        }
+
+        return results.sorted { $0.username.localizedCaseInsensitiveCompare($1.username) == .orderedAscending }
+    }
+
+    private func getPendingRelationUserIds() async throws -> Set<String> {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return [] }
+        var ids = Set<String>()
+
+        let outgoing = try await db.collection("friendRequests")
+            .whereField("fromUserId", isEqualTo: currentUserId)
+            .whereField("status", isEqualTo: FriendRequestStatus.pending.rawValue)
+            .getDocuments()
+        for doc in outgoing.documents {
+            if let id = doc.data()["toUserId"] as? String {
+                ids.insert(id)
+            }
+        }
+
+        let incoming = try await db.collection("friendRequests")
+            .whereField("toUserId", isEqualTo: currentUserId)
+            .whereField("status", isEqualTo: FriendRequestStatus.pending.rawValue)
+            .getDocuments()
+        for doc in incoming.documents {
+            if let id = doc.data()["fromUserId"] as? String {
+                ids.insert(id)
+            }
+        }
+
+        return ids
     }
 
     // MARK: - Demandes d'amis
@@ -183,6 +267,19 @@ class FriendManager: ObservableObject {
         )
 
         try await db.collection("friendRequests").document(requestId).setData(request.dictionary)
+
+        // Créer une notification (push + in-app) pour le destinataire
+        let notificationData: [String: Any] = [
+            "type": "friend_request",
+            "fromUserId": currentUser.uid,
+            "fromUsername": currentUserData.username,
+            "fromDisplayName": currentUserData.displayName ?? "",
+            "fromProfileImageURL": currentUserData.profileImageURL ?? "",
+            "toUserId": userId,
+            "createdAt": Timestamp(date: Date()),
+            "isRead": false
+        ]
+        try await db.collection("notifications").addDocument(data: notificationData)
     }
 
     /// Récupérer les demandes d'amis reçues
@@ -213,6 +310,72 @@ class FriendManager: ObservableObject {
         }
 
         return requests
+    }
+
+    // MARK: - Notifications locales demandes d'amis (in-app)
+
+    func startFriendRequestsListener() {
+        friendRequestsListener?.remove()
+        friendRequestsListener = nil
+        hasLoadedInitialFriendRequests = false
+        notifiedRequestIds.removeAll()
+
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+
+        friendRequestsListener = db.collection("friendRequests")
+            .whereField("toUserId", isEqualTo: currentUserId)
+            .whereField("status", isEqualTo: FriendRequestStatus.pending.rawValue)
+            .addSnapshotListener { [weak self] snapshot, _ in
+                guard let self else { return }
+                guard let snapshot else { return }
+
+                if !self.hasLoadedInitialFriendRequests {
+                    self.hasLoadedInitialFriendRequests = true
+                    snapshot.documents.forEach { doc in
+                        self.notifiedRequestIds.insert(doc.documentID)
+                    }
+                    return
+                }
+
+                for change in snapshot.documentChanges where change.type == .added {
+                    let doc = change.document
+                    if self.notifiedRequestIds.contains(doc.documentID) { continue }
+                    self.notifiedRequestIds.insert(doc.documentID)
+
+                    let data = doc.data()
+                    let fromDisplay = (data["fromDisplayName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let fromUsername = (data["fromUsername"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let fromName = (fromDisplay?.isEmpty == false) ? fromDisplay! : (fromUsername?.isEmpty == false ? fromUsername! : "Quelqu'un")
+
+                    self.scheduleLocalFriendRequestNotification(fromName: fromName, requestId: doc.documentID)
+                }
+            }
+    }
+
+    func stopFriendRequestsListener() {
+        friendRequestsListener?.remove()
+        friendRequestsListener = nil
+    }
+
+    private func scheduleLocalFriendRequestNotification(fromName: String, requestId: String) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+
+            let content = UNMutableNotificationContent()
+            content.title = "Nouvelle demande d'ami"
+            content.body = "\(fromName) veut être ton complice."
+            content.sound = .default
+            content.userInfo = ["type": "friend_request", "requestId": requestId]
+
+            let request = UNNotificationRequest(
+                identifier: "friend_request_\(requestId)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+            )
+
+            center.add(request)
+        }
     }
 
     /// Accepter une demande d'ami
@@ -257,6 +420,23 @@ class FriendManager: ObservableObject {
         try await db.collection("friendRequests").document(requestId).updateData([
             "status": FriendRequestStatus.rejected.rawValue
         ])
+    }
+
+    /// Annuler une demande d'ami envoyée (pending)
+    func cancelFriendRequest(to userId: String) async throws {
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"])
+        }
+
+        let snapshot = try await db.collection("friendRequests")
+            .whereField("fromUserId", isEqualTo: currentUser.uid)
+            .whereField("toUserId", isEqualTo: userId)
+            .whereField("status", isEqualTo: FriendRequestStatus.pending.rawValue)
+            .getDocuments()
+
+        for doc in snapshot.documents {
+            try await doc.reference.delete()
+        }
     }
 
     // MARK: - Amis

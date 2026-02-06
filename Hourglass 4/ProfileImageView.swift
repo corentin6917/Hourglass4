@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import UIKit
+import Combine
 
 /// Vue d'avatar de profil avec photo ou initiale
 struct ProfileImageView: View {
@@ -13,6 +15,7 @@ struct ProfileImageView: View {
     let username: String
     let size: CGFloat
     let gradientColors: [Color]
+    @StateObject private var loader: ProfileImageLoader
 
     init(
         imageURL: String?,
@@ -24,32 +27,23 @@ struct ProfileImageView: View {
         self.username = username
         self.size = size
         self.gradientColors = gradientColors
+        _loader = StateObject(wrappedValue: ProfileImageLoader(urlString: imageURL))
     }
 
     var body: some View {
         Group {
-            if let urlString = imageURL, let url = URL(string: urlString) {
-                // Photo de profil
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        // Chargement
-                        ProgressView()
-                            .frame(width: size, height: size)
-                    case .success(let image):
-                        // Image chargée
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: size, height: size)
-                            .clipShape(Circle())
-                    case .failure:
-                        // Erreur de chargement -> fallback sur initiale
-                        initialAvatar
-                    @unknown default:
-                        initialAvatar
+            if let uiImage = loader.image {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else if imageURL != nil {
+                ProgressView()
+                    .frame(width: size, height: size)
+                    .task {
+                        loader.loadIfNeeded()
                     }
-                }
             } else {
                 // Pas d'image -> avatar avec initiale
                 initialAvatar
@@ -72,6 +66,73 @@ struct ProfileImageView: View {
                     .font(.system(size: size * 0.4, weight: .bold))
                     .foregroundStyle(.white)
             }
+    }
+
+    static func prefetch(urlStrings: [String]) {
+        ProfileImageLoader.prefetch(urlStrings: urlStrings)
+    }
+}
+
+@MainActor
+private final class ProfileImageLoader: ObservableObject {
+    @Published var image: UIImage?
+
+    private let urlString: String?
+    private var task: Task<Void, Never>?
+    private static let cache = NSCache<NSString, UIImage>()
+
+    init(urlString: String?) {
+        self.urlString = urlString
+        if let urlString,
+           let cached = Self.cache.object(forKey: urlString as NSString) {
+            self.image = cached
+        }
+    }
+
+    deinit {
+        task?.cancel()
+    }
+
+    func loadIfNeeded() {
+        guard image == nil else { return }
+        guard let urlString, let url = URL(string: urlString) else { return }
+
+        if let cached = Self.cache.object(forKey: urlString as NSString) {
+            image = cached
+            return
+        }
+
+        task?.cancel()
+        task = Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard !Task.isCancelled, let image = UIImage(data: data) else { return }
+                Self.cache.setObject(image, forKey: urlString as NSString)
+                self.image = image
+            } catch {
+                return
+            }
+        }
+    }
+
+    static func prefetch(urlStrings: [String]) {
+        let unique = Array(Set(urlStrings)).prefix(20)
+        for urlString in unique {
+            if cache.object(forKey: urlString as NSString) != nil { continue }
+            guard let url = URL(string: urlString) else { continue }
+
+            Task.detached(priority: .utility) {
+                do {
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    guard let image = UIImage(data: data) else { return }
+                    await MainActor.run {
+                        cache.setObject(image, forKey: urlString as NSString)
+                    }
+                } catch {
+                    return
+                }
+            }
+        }
     }
 }
 

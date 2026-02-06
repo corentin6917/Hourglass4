@@ -329,7 +329,7 @@ struct HourglassTodayView: View {
                         VStack(alignment: .leading, spacing: 20) {
                             HStack(spacing: 10) {
                                 Text("Historique de la semaine")
-                                    .font(.system(size: 18, weight: .semibold))
+                                    .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(.primary)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
@@ -544,7 +544,7 @@ struct SablierPrimaryTile: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.primary)
                 Text(title)
                     .font(.caption2)
@@ -553,7 +553,8 @@ struct SablierPrimaryTile: View {
 
             Spacer()
         }
-        .padding(14)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background {
             RoundedRectangle(cornerRadius: 18)
                 .fill(Color.white.opacity(0.85))
@@ -586,7 +587,7 @@ struct SablierMiniTile: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -599,7 +600,8 @@ struct SablierMiniTile: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
         .background {
             RoundedRectangle(cornerRadius: 14)
                 .fill(Color.white.opacity(0.8))
