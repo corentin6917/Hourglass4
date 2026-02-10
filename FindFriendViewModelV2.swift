@@ -16,6 +16,7 @@ class FindFriendViewModelV2: ObservableObject {
     @Published var searchResult: UserData?
     @Published var pendingRequests: [FriendRequest] = []
     @Published var friends: [UserData] = []
+    @Published var friendIds: Set<String> = []
     @Published var isSearching: Bool = false
     @Published var isSendingRequest: Bool = false
     @Published var isLoading: Bool = false
@@ -60,6 +61,15 @@ class FindFriendViewModelV2: ObservableObject {
     func sendFriendRequest(to user: UserData) async {
         guard currentUserId != nil else {
             errorMessage = "Vous devez être connecté"
+            return
+        }
+        if isFriend(user.uid) {
+            errorMessage = nil
+            successMessage = "Vous êtes déjà amis"
+            Task {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                successMessage = nil
+            }
             return
         }
 
@@ -196,11 +206,16 @@ class FindFriendViewModelV2: ObservableObject {
         isLoading = true
         do {
             friends = try await FriendManager.shared.getFriends()
+            friendIds = Set(friends.map { $0.uid })
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = "Erreur lors du chargement des amis: \(error.localizedDescription)"
         }
+    }
+
+    func isFriend(_ userId: String) -> Bool {
+        friendIds.contains(userId)
     }
 
     /// Accepter une demande d'ami

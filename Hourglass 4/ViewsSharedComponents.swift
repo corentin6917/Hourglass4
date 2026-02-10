@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseAuth
+import UIKit
 
 // MARK: - Stat Card View
 
@@ -222,34 +223,48 @@ struct CurrentUserAvatarButton: View {
     @StateObject private var userManager = UserManager.shared
     @State private var userData: UserData?
     @State private var isLoading = true
+    @State private var pendingFriendRequestsCount = 0
 
     var body: some View {
         Button {
             action()
         } label: {
-            Group {
-                if let userData = userData {
-                    ProfileImageView(
-                        imageURL: userData.profileImageURL,
-                        username: userData.username,
-                        size: size,
-                        gradientColors: gradientColors
-                    )
-                } else if isLoading {
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let userData = userData {
+                        ProfileImageView(
+                            imageURL: userData.profileImageURL,
+                            username: userData.username,
+                            size: size,
+                            gradientColors: gradientColors
+                        )
+                    } else if isLoading {
+                        Circle()
+                            .fill(Color.orange.opacity(0.12))
+                            .frame(width: size, height: size)
+                            .overlay {
+                                ProgressView()
+                                    .tint(.orange)
+                            }
+                    } else {
+                        ProfileImageView(
+                            imageURL: nil,
+                            username: "U",
+                            size: size,
+                            gradientColors: gradientColors
+                        )
+                    }
+                }
+                if pendingFriendRequestsCount > 0 {
                     Circle()
-                        .fill(Color.orange.opacity(0.12))
-                        .frame(width: size, height: size)
-                        .overlay {
-                            ProgressView()
-                                .tint(.orange)
-                        }
-                } else {
-                    ProfileImageView(
-                        imageURL: nil,
-                        username: "U",
-                        size: size,
-                        gradientColors: gradientColors
-                    )
+                        .fill(Color.red)
+                        .frame(width: max(8, size * 0.18), height: max(8, size * 0.18))
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: 2)
+                        )
+                        .offset(x: 2, y: -2)
+                        .accessibilityLabel("Nouvelle demande d'ami")
                 }
             }
             .frame(width: size, height: size)
@@ -263,10 +278,16 @@ struct CurrentUserAvatarButton: View {
         .buttonStyle(.plain)
         .task {
             await loadCurrentUser()
+            await loadPendingFriendRequestsCount()
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileDidUpdate)) { _ in
             Task {
                 await loadCurrentUser(forceRefresh: true)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            Task {
+                await loadPendingFriendRequestsCount()
             }
         }
     }
@@ -303,6 +324,19 @@ struct CurrentUserAvatarButton: View {
         } catch {
             await MainActor.run {
                 isLoading = false
+            }
+        }
+    }
+
+    private func loadPendingFriendRequestsCount() async {
+        do {
+            let requests = try await FriendManager.shared.getPendingFriendRequests()
+            await MainActor.run {
+                pendingFriendRequestsCount = requests.count
+            }
+        } catch {
+            await MainActor.run {
+                pendingFriendRequestsCount = 0
             }
         }
     }

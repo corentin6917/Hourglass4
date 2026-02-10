@@ -29,6 +29,10 @@ struct ProfileView: View {
                 VStack(spacing: 20) {
                     MainProfileCard(viewModel: viewModel, showEditProfile: $showEditProfile)
 
+                    PendingRequestsSection()
+
+                    FindFriendsSection(showFindFriends: $showFindFriends)
+
                     FriendsSection(showFindFriends: $showFindFriends)
 
                     Spacer(minLength: 24)
@@ -113,6 +117,9 @@ struct ProfileView: View {
                 if isActive {
                     dismiss()
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showIntroPresentation)) { _ in
+                dismiss()
             }
         }
     }
@@ -561,8 +568,6 @@ struct FriendsSection: View {
     @State private var isLoading = true
     @State private var errorText: String?
     @State private var isExpanded = false
-    @State private var pendingRequests: [FriendRequest] = []
-    @State private var isLoadingRequests = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -635,74 +640,6 @@ struct FriendsSection: View {
                     .padding()
                 }
 
-                Divider()
-
-                Button {
-                    showFindFriends = true
-                } label: {
-                    HStack(spacing: 12) {
-                        SettingsIcon(symbol: "magnifyingglass", color: .orange)
-                        Text("Trouver des complices")
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding()
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        SettingsIcon(symbol: "person.badge.plus", color: .orange)
-                        Text("Demandes reçues")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-
-                        if pendingRequests.count > 0 {
-                            Text("\(pendingRequests.count)")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.orange)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background {
-                                    Capsule()
-                                        .fill(Color.orange.opacity(0.15))
-                                }
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    if isLoadingRequests {
-                        ProgressView()
-                            .padding(.horizontal)
-                    } else if pendingRequests.isEmpty {
-                        Text("Aucune demande en attente")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal)
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(pendingRequests) { request in
-                                PendingRequestCard(request: request) {
-                                    loadPendingRequests()
-                                    loadFriends()
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 4)
-                    }
-                }
-                .padding(.top, 6)
-                .padding(.bottom, 4)
             }
         }
         .padding()
@@ -713,12 +650,6 @@ struct FriendsSection: View {
         }
         .onAppear {
             loadFriends()
-            loadPendingRequests()
-        }
-        .onChange(of: isExpanded) { _, newValue in
-            if newValue {
-                loadPendingRequests()
-            }
         }
     }
 
@@ -756,6 +687,72 @@ struct FriendsSection: View {
         }
     }
 
+}
+
+struct PendingRequestsSection: View {
+    @State private var pendingRequests: [FriendRequest] = []
+    @State private var isLoadingRequests = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                SettingsIcon(symbol: "person.badge.plus", color: .orange)
+                Text("Demandes reçues")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                if pendingRequests.count > 0 {
+                    Text("\(pendingRequests.count)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background {
+                            Capsule()
+                                .fill(Color.orange.opacity(0.15))
+                        }
+                }
+            }
+            .padding(.horizontal)
+
+            if isLoadingRequests {
+                ProgressView()
+                    .padding(.horizontal)
+            } else if pendingRequests.isEmpty {
+                Text("Aucune demande en attente")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(pendingRequests) { request in
+                        PendingRequestCard(request: request) {
+                            loadPendingRequests()
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 4)
+            }
+        }
+        .padding()
+        .background {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 10)
+        }
+        .onAppear {
+            loadPendingRequests()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            loadPendingRequests()
+        }
+    }
+
     private func loadPendingRequests() {
         isLoadingRequests = true
 
@@ -768,10 +765,40 @@ struct FriendsSection: View {
                 }
             } catch {
                 await MainActor.run {
+                    pendingRequests = []
                     isLoadingRequests = false
                 }
                 print("Erreur chargement demandes: \(error.localizedDescription)")
             }
+        }
+    }
+}
+
+struct FindFriendsSection: View {
+    @Binding var showFindFriends: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button {
+                showFindFriends = true
+            } label: {
+                HStack(spacing: 12) {
+                    SettingsIcon(symbol: "magnifyingglass", color: .orange)
+                    Text("Trouver des complices")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+            }
+            .buttonStyle(.plain)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 10)
         }
     }
 }
@@ -1031,6 +1058,7 @@ struct SettingsView: View {
     @State private var deletePhraseInput = ""
     @State private var isPublic = true
     @State private var isLoadingProfile = false
+    @State private var showIntroPresentation = false
 
     private var timezoneLabel: String {
         let tz = TimeZone(identifier: timezoneIdentifier) ?? .current
@@ -1183,8 +1211,7 @@ struct SettingsView: View {
                             Divider()
 
                             Button {
-                                tutorialManager.start(force: true)
-                                dismiss()
+                                showIntroPresentation = true
                             } label: {
                                 SettingsRow(
                                     symbol: "arrow.counterclockwise",
@@ -1285,6 +1312,26 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showAbout) {
                 SettingsAboutView()
+            }
+            .fullScreenCover(isPresented: $showIntroPresentation) {
+                IntroPresentationView(
+                    onStart: {
+                        showIntroPresentation = false
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            tutorialManager.start(force: true)
+                        }
+                    },
+                    onSkip: {
+                        showIntroPresentation = false
+                        dismiss()
+                        Task {
+                            if let uid = Auth.auth().currentUser?.uid {
+                                try? await UserManager.shared.setTutorialCompleted(uid: uid, completed: true)
+                            }
+                        }
+                    }
+                )
             }
             .alert("Déconnexion", isPresented: $showLogoutConfirmation) {
                 Button("Annuler", role: .cancel) {}
@@ -2254,10 +2301,6 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-extension Notification.Name {
-    static let profileDidUpdate = Notification.Name("profileDidUpdate")
-}
-
 struct EditProfileView: View {
     let viewModel: HourglassViewModel?
     @Environment(\.dismiss) private var dismiss
@@ -2301,6 +2344,7 @@ struct EditProfileView: View {
                             profileHeader
                             personalInfoCard
                             additionalInfoCard
+                            securityCard
                             privacyCard
 
                             if let errorMessage {
@@ -2512,6 +2556,44 @@ struct EditProfileView: View {
             }
             .padding(12)
             .background(fieldBackground)
+        }
+        .padding(18)
+        .background(cardBackground)
+    }
+
+    private var securityCard: some View {
+        let hasPasswordProvider = Auth.auth().currentUser?.providerData.contains(where: { $0.providerID == "password" }) ?? false
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Sécurité")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            NavigationLink {
+                ChangePasswordView()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.orange)
+                    Text("Modifier le mot de passe")
+                        .font(.subheadline)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .background(fieldBackground)
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasPasswordProvider)
+            .opacity(hasPasswordProvider ? 1 : 0.5)
+
+            if !hasPasswordProvider {
+                Text("Compte sans mot de passe (Apple/Google).")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(18)
         .background(cardBackground)
@@ -2824,6 +2906,178 @@ struct EditProfileView: View {
     private func isAdminEmail(_ value: String) -> Bool {
         let normalized = value.lowercased()
         return normalized == "soula.corentin@icloud.com" || normalized == "soula.corentin@gmail.com"
+    }
+}
+
+struct ChangePasswordView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var successMessage: String?
+
+    private var hasPasswordProvider: Bool {
+        Auth.auth().currentUser?.providerData.contains(where: { $0.providerID == "password" }) ?? false
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(uiColor: .systemGroupedBackground),
+                    Color.orange.opacity(0.05)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    VStack(spacing: 12) {
+                        SecureField("Mot de passe actuel", text: $currentPassword)
+                            .textContentType(.password)
+                            .padding(14)
+                            .background(fieldBackground)
+
+                        SecureField("Nouveau mot de passe", text: $newPassword)
+                            .textContentType(.newPassword)
+                            .padding(14)
+                            .background(fieldBackground)
+
+                        SecureField("Confirmer le nouveau mot de passe", text: $confirmPassword)
+                            .textContentType(.newPassword)
+                            .padding(14)
+                            .background(fieldBackground)
+                    }
+                    .padding(18)
+                    .background(cardBackground)
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+
+                    if let successMessage {
+                        Text(successMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button {
+                        changePassword()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isSaving {
+                                ProgressView()
+                                    .scaleEffect(0.9)
+                            }
+                            Text("Mettre à jour")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Capsule().fill(Color.orange))
+                        .foregroundStyle(.white)
+                    }
+                    .disabled(isSaving || !hasPasswordProvider)
+                    .opacity(hasPasswordProvider ? 1 : 0.5)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
+            }
+        }
+        .navigationTitle("Mot de passe")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Fermer") { dismiss() }
+            }
+        }
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 18)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemBackground),
+                        Color.orange.opacity(0.04)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.orange.opacity(0.08), lineWidth: 1)
+            }
+    }
+
+    private var fieldBackground: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(Color(uiColor: .secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.orange.opacity(0.08), lineWidth: 1)
+            }
+    }
+
+    private func changePassword() {
+        errorMessage = nil
+        successMessage = nil
+
+        guard hasPasswordProvider else {
+            errorMessage = "Ce compte n'a pas de mot de passe."
+            return
+        }
+
+        guard let user = Auth.auth().currentUser else {
+            errorMessage = "Vous devez être connecté."
+            return
+        }
+
+        guard let email = user.email else {
+            errorMessage = "Email introuvable."
+            return
+        }
+
+        let trimmedNew = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedNew.count >= 6 else {
+            errorMessage = "Le mot de passe doit faire au moins 6 caractères."
+            return
+        }
+
+        guard trimmedNew == confirmPassword.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            errorMessage = "Les mots de passe ne correspondent pas."
+            return
+        }
+
+        isSaving = true
+        let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
+        user.reauthenticate(with: credential) { _, error in
+            if error != nil {
+                isSaving = false
+                errorMessage = "Mot de passe actuel incorrect."
+                return
+            }
+
+            user.updatePassword(to: trimmedNew) { error in
+                isSaving = false
+                if let error {
+                    errorMessage = "Erreur: \(error.localizedDescription)"
+                } else {
+                    successMessage = "Mot de passe mis à jour."
+                    currentPassword = ""
+                    newPassword = ""
+                    confirmPassword = ""
+                }
+            }
+        }
     }
 }
 

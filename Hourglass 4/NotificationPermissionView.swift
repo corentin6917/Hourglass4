@@ -7,10 +7,12 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct NotificationPermissionView: View {
     var onDismiss: () -> Void
     var onAllow: () -> Void
+    var isDenied: Bool = false
 
     @State private var isRequestingPermission = false
 
@@ -79,25 +81,42 @@ struct NotificationPermissionView: View {
                         )
                         .cornerRadius(16, corners: [.topLeft, .topRight])
 
-                        Button(action: {
-                            isRequestingPermission = true
-                            onAllow()
-                            isRequestingPermission = false
-                        }) {
-                            Text("Autoriser")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 54)
-                                .background(
-                                    LinearGradient(
-                                        colors: [Color.orange, Color.orange.opacity(0.8)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
+                        if isDenied {
+                            Button(action: openSettings) {
+                                Text("Ouvrir les réglages")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 54)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [Color.orange, Color.orange.opacity(0.8)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
                                     )
-                                )
+                            }
+                        } else {
+                            Button(action: {
+                                isRequestingPermission = true
+                                onAllow()
+                                isRequestingPermission = false
+                            }) {
+                                Text("Autoriser")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 54)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [Color.orange, Color.orange.opacity(0.8)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                            }
+                            .disabled(isRequestingPermission)
                         }
-                        .disabled(isRequestingPermission)
 
                         Button(action: {
                             onDismiss()
@@ -126,6 +145,12 @@ struct NotificationPermissionView: View {
                 }
             )
     }
+}
+
+private func openSettings() {
+    guard let url = URL(string: UIApplication.openSettingsURLString),
+          UIApplication.shared.canOpenURL(url) else { return }
+    UIApplication.shared.open(url)
 }
 
 extension View {

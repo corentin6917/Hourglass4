@@ -38,7 +38,8 @@ struct FindFriendView: View {
                     }
 
                     // Messages d'erreur/succès
-                    if let errorMessage = viewModel.errorMessage {
+                    if let errorMessage = viewModel.errorMessage,
+                       shouldShowError(errorMessage) {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -64,6 +65,7 @@ struct FindFriendView: View {
             .onAppear {
                 contactsPermissionStatus = CNContactStore.authorizationStatus(for: .contacts)
                 Task { await viewModel.refreshPendingRelationUserIds() }
+                Task { await viewModel.loadFriends() }
                 if contactsPermissionStatus == .authorized {
                     Task { await loadContactSuggestions() }
                 }
@@ -157,7 +159,7 @@ struct FindFriendView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Accès contacts refusé")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundColor(.orange)
                     Text("Active les contacts dans Réglages pour voir les amis déjà présents sur Hourglass.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -180,6 +182,7 @@ struct FindFriendView: View {
 
     private func contactSuggestionRow(_ user: UserData) -> some View {
         let isPending = viewModel.isRequestPending(for: user.uid)
+        let isFriend = viewModel.isFriend(user.uid)
 
         return HStack(spacing: 12) {
             Circle()
@@ -188,7 +191,7 @@ struct FindFriendView: View {
                 .overlay {
                     Text(user.username.prefix(1).uppercased())
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundColor(.white)
                 }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -206,7 +209,9 @@ struct FindFriendView: View {
 
             Button {
                 Task {
-                    if isPending {
+                    if isFriend {
+                        return
+                    } else if isPending {
                         await viewModel.cancelFriendRequest(to: user)
                     } else {
                         await viewModel.sendFriendRequest(to: user)
@@ -214,15 +219,18 @@ struct FindFriendView: View {
                 }
             } label: {
                 Label(
-                    isPending ? "En attente" : "Ajouter",
-                    systemImage: isPending ? "clock.fill" : "person.badge.plus"
+                    isFriend ? "Amis" : (isPending ? "En attente" : "Ajouter"),
+                    systemImage: isFriend ? "checkmark.circle.fill" : (isPending ? "clock.fill" : "person.badge.plus")
                 )
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(isPending ? .orange : .white)
+                .foregroundColor(isFriend ? Color.secondary : (isPending ? Color.orange : Color.white))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background {
-                    if isPending {
+                    if isFriend {
+                        Capsule()
+                            .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
+                    } else if isPending {
                         Capsule()
                             .stroke(Color.orange.opacity(0.6), lineWidth: 1)
                     } else {
@@ -232,7 +240,7 @@ struct FindFriendView: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isSendingRequest)
+            .disabled(viewModel.isSendingRequest || isFriend)
         }
         .padding(10)
         .background {
@@ -297,6 +305,7 @@ struct FindFriendView: View {
 
     private func userResultCard(_ user: UserData) -> some View {
         let isPending = viewModel.isRequestPending(for: user.uid)
+        let isFriend = viewModel.isFriend(user.uid)
 
         return HStack(spacing: 14) {
             if let imageURL = user.profileImageURL, !imageURL.isEmpty {
@@ -333,7 +342,9 @@ struct FindFriendView: View {
 
             Button {
                 Task {
-                    if isPending {
+                    if isFriend {
+                        return
+                    } else if isPending {
                         await viewModel.cancelFriendRequest(to: user)
                     } else {
                         await viewModel.sendFriendRequest(to: user)
@@ -345,15 +356,18 @@ struct FindFriendView: View {
                         .progressViewStyle(.circular)
                 } else {
                     Label(
-                        isPending ? "En attente" : "Ajouter",
-                        systemImage: isPending ? "clock.fill" : "person.badge.plus.fill"
+                        isFriend ? "Amis" : (isPending ? "En attente" : "Ajouter"),
+                        systemImage: isFriend ? "checkmark.circle.fill" : (isPending ? "clock.fill" : "person.badge.plus.fill")
                     )
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isPending ? .orange : .white)
+                    .foregroundColor(isFriend ? Color.secondary : (isPending ? Color.orange : Color.white))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background {
-                        if isPending {
+                        if isFriend {
+                            Capsule()
+                                .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
+                        } else if isPending {
                             Capsule()
                                 .stroke(Color.orange.opacity(0.6), lineWidth: 1)
                         } else {
@@ -364,7 +378,7 @@ struct FindFriendView: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isSendingRequest)
+            .disabled(viewModel.isSendingRequest || isFriend)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -406,6 +420,11 @@ struct FindFriendView: View {
                 .foregroundStyle(.secondary)
         }
         .padding()
+    }
+
+    private func shouldShowError(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        return !(lower.contains("déjà ami") || lower.contains("deja ami") || lower.contains("already friend"))
     }
 }
 

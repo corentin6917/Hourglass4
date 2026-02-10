@@ -66,12 +66,6 @@ struct MainTabView: View {
     }
 }
 
-extension Notification.Name {
-    static let switchToObjectivesTab = Notification.Name("switchToObjectivesTab")
-    static let switchToVictoryFeed = Notification.Name("switchToVictoryFeed")
-    static let openVictoryFromNotification = Notification.Name("openVictoryFromNotification")
-}
-
 #Preview {
     MainTabView(viewModel: nil)
         .environmentObject(TutorialManager.shared)

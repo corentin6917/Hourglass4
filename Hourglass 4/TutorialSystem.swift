@@ -146,6 +146,8 @@ final class TutorialManager: ObservableObject {
     @Published var currentStepIndex = 0
     @Published var currentTab = 1
     @Published var currentPageId: String?
+    @Published var shouldShowIntro = false
+    @Published var showIntroPresentation = false
 
     let steps: [TutorialStep] = TutorialStep.allSteps
     private var lastCheckedUserId: String?

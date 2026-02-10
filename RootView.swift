@@ -9,6 +9,7 @@
 import SwiftUI
 import FirebaseAuth
 import SwiftData
+import UIKit
 
 struct RootView: View {
     let modelContext: ModelContext
@@ -21,6 +22,7 @@ struct RootView: View {
     @State private var showNotificationPrompt = false
     @State private var showValidateGoalSheet = false
     @EnvironmentObject private var tutorialManager: TutorialManager
+    @AppStorage("tutorial.forceIntro") private var forceIntro = false
 
     var body: some View {
         ZStack {
@@ -48,7 +50,7 @@ struct RootView: View {
                         _ = await notificationManager.requestAuthorization()
                         await notificationManager.checkAuthorizationStatus()
                     }
-                })
+                }, isDenied: notificationManager.authorizationStatus == .denied)
             }
         }
         .coordinateSpace(name: TutorialManager.coordinateSpaceName)
@@ -102,6 +104,22 @@ struct RootView: View {
                 ValidateGoalCameraView()
             }
         }
+        .fullScreenCover(isPresented: $tutorialManager.showIntroPresentation) {
+            IntroPresentationView(
+                onStart: {
+                    tutorialManager.showIntroPresentation = false
+                    tutorialManager.start(force: true)
+                },
+                onSkip: {
+                    tutorialManager.showIntroPresentation = false
+                    Task {
+                        if let uid = Auth.auth().currentUser?.uid {
+                            try? await UserManager.shared.setTutorialCompleted(uid: uid, completed: true)
+                        }
+                    }
+                }
+            )
+        }
         .onOpenURL { url in
             deepLinkHandler.handle(url)
         }
@@ -136,6 +154,17 @@ struct RootView: View {
                 // Vérifier immédiatement si le splash est déjà passé
                 checkNotificationStatus()
             }
+
+            if forceIntro {
+                tutorialManager.showIntroPresentation = true
+                forceIntro = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            if forceIntro {
+                tutorialManager.showIntroPresentation = true
+                forceIntro = false
+            }
         }
         .onDisappear {
             if let handle = authListenerHandle {
@@ -144,8 +173,8 @@ struct RootView: View {
             }
         }
         .onChange(of: notificationManager.authorizationStatus) { _, newStatus in
-            // Cacher le prompt si l'utilisateur a autorisé ou refusé
-            if newStatus == .authorized || newStatus == .denied {
+            // Cacher seulement si autorisé
+            if newStatus == .authorized || newStatus == .provisional {
                 showNotificationPrompt = false
             }
         }
